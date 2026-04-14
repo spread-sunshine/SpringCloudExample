@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: microservice-template
+  profiles:
+    active: @spring.profiles.active@
+  main:
+    allow-bean-definition-overriding: true
+    web-application-type: reactive
+  cloud:
+    config:
+      enabled: false
+      uri: http://localhost:8888
+    discovery:
+      enabled: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.example: DEBUG
+    org.springframework.cloud: INFO
+
+# Example configuration for Eureka (optional)
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    enabled: true
+  instance:
+    prefer-ip-address: true
+
+# Example configuration for Gateway (if used)
+spring.cloud.gateway:
+  routes:
+    - id: example_route
+      uri: lb://SERVICE-NAME
+      predicates:
+        - Path=/api/**
+
+# Resilience4j circuit breaker
+resilience4j.circuitbreaker:
+  instances:
+    backendA:
+      registerHealthIndicator: true
+      slidingWindowSize: 10
+      minimumNumberOfCalls: 5
+      permittedNumberOfCallsInHalfOpenState: 3
+      automaticTransitionFromOpenToHalfOpenEnabled: true
+      waitDurationInOpenState: 5s
+      failureRateThreshold: 50
+      eventConsumerBufferSize: 10

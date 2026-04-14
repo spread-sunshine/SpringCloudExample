@@ -1,0 +1,207 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microservice-template
+  namespace: microservices
+  labels:
+    app: microservice-template
+    version: v1
+    component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: microservice-template
+      version: v1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: microservice-template
+        version: v1
+        component: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      serviceAccountName: microservice-sa
+      containers:
+      - name: microservice-template
+        image: registry.example.com/microservice-template:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: JAVA_OPTS
+          value: "-Xms512m -Xmx1024m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ParallelRefProcEnabled -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/opt/heapdump.hprof"
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: microservice-secrets
+              key: db-username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: microservice-secrets
+              key: db-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: microservice-secrets
+              key: jwt-secret
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          value: "http://eureka-server:8761/eureka/"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1024Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /actuator/health/startup
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/microservice-template
+        - name: config
+          mountPath: /opt/config
+          readOnly: true
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: config
+        configMap:
+          name: microservice-config
+      imagePullSecrets:
+      - name: registry-credentials
+      securityContext:
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservice-template
+  namespace: microservices
+  labels:
+    app: microservice-template
+spec:
+  selector:
+    app: microservice-template
+    version: v1
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: microservice-template
+  namespace: microservices
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.example.com
+    secretName: microservice-template-tls
+  rules:
+  - host: api.example.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: microservice-template
+            port:
+              number: 8080
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: microservice-template-hpa
+  namespace: microservices
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: microservice-template
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 60

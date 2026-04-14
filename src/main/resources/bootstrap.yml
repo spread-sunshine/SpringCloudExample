@@ -1,0 +1,13 @@
+# Bootstrap configuration for Config Client (optional)
+spring:
+  application:
+    name: microservice-template
+  cloud:
+    config:
+      enabled: false
+      uri: http://localhost:8888
+      fail-fast: false
+      retry:
+        initial-interval: 1000
+        max-interval: 2000
+        max-attempts: 6

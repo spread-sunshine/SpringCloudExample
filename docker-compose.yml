@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # Example microservice
+  microservice-template:
+    build: .
+    container_name: microservice-template
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+      - SPRING_CLOUD_CONFIG_ENABLED=false
+    depends_on:
+      - eureka
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Eureka Server (Service Discovery)
+  eureka:
+    image: springcloud/eureka
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Config Server (optional)
+  config-server:
+    image: springcloud/config-server
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    environment:
+      - SPRING_PROFILES_ACTIVE=native
+      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCHLOCATIONS=file:/config
+    volumes:
+      - ./config:/config
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Gateway (optional)
+  gateway:
+    image: springcloud/gateway
+    container_name: gateway
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+    depends_on:
+      - eureka
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # PostgreSQL (example database)
+  postgres:
+    image: postgres:14-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=microservice_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Redis (example cache)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Prometheus (monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Grafana (visualization)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  grafana-data:
+
+networks:
+  microservice-network:
+    driver: bridge
