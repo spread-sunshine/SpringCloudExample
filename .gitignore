@@ -65,6 +65,3 @@ logs/
 
 # Temp
 tmp/
-
-# Test reports
-*.xml
