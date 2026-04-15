@@ -150,7 +150,7 @@ security:
 # Logging Configuration
 logging:
   level:
-    com.example: INFO
+    com.template: INFO
     org.springframework.cloud: WARN
     org.springframework.web: WARN
     org.springframework.security: WARN

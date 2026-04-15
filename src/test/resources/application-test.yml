@@ -52,7 +52,7 @@ management:
 
 logging:
   level:
-    com.example: DEBUG
+    com.template: DEBUG
     org.springframework: WARN
     org.hibernate: WARN
   pattern:

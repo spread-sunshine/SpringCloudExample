@@ -42,7 +42,7 @@ data:
     
     logging:
       level:
-        com.example: INFO
+        com.template: INFO
         org.springframework: WARN
       file:
         name: /var/log/microservice-template/app.log
@@ -99,7 +99,7 @@ data:
             <appender-ref ref="FILE"/>
         </root>
         
-        <logger name="com.example.microservice" level="INFO"/>
+        <logger name="com.template.microservice" level="INFO"/>
         <logger name="org.springframework" level="WARN"/>
         <logger name="org.hibernate" level="WARN"/>
         <logger name="org.apache.kafka" level="WARN"/>
@@ -108,7 +108,7 @@ data:
             <root level="DEBUG">
                 <appender-ref ref="CONSOLE"/>
             </root>
-            <logger name="com.example.microservice" level="DEBUG"/>
+            <logger name="com.template.microservice" level="DEBUG"/>
         </springProfile>
     </configuration>
   

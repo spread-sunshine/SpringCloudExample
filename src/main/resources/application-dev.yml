@@ -87,7 +87,7 @@ eureka:
 
 # JWT Configuration
 jwt:
-  secret: your-secret-key-change-in-production-with-at-least-256-bits
+  secret: your-secret-key-change-in-production-with-at-least-256-bits-longer-key-for-testing
   expiration: 86400000 # 24 hours
   refresh-expiration: 604800000 # 7 days
 
@@ -95,6 +95,30 @@ jwt:
 security:
   api:
     keys: "test-api-key-1:ROLE_USER,ROLE_ADMIN:Test Client 1;test-api-key-2:ROLE_USER:Test Client 2"
+    validator: "database" # simple or database
+    key:
+      expiration:
+        days: 90
+      warning:
+        days: 7
+      length: 32
+      prefix: "sk_"
+  jwt:
+    blacklist:
+      enabled: true
+      cleanup:
+        interval-hours: 24
+  audit:
+    enabled: true
+    log-sensitive-operations: true
+  headers:
+    enabled: true
+    hsts:
+      max-age: 31536000 # 1 year
+      include-subdomains: true
+      preload: false
+    csp:
+      report-only: false
   oauth2:
     client:
       registration:
@@ -106,7 +130,7 @@ security:
 # Logging Configuration
 logging:
   level:
-    com.example: DEBUG
+    com.template: DEBUG
     org.springframework.cloud: DEBUG
     org.springframework.web: DEBUG
     org.springframework.security: DEBUG
@@ -185,10 +209,25 @@ resilience4j:
   ratelimiter:
     instances:
       apiRateLimiter:
-        limit-for-period: 10
-        limit-refresh-period: 1s
-        timeout-duration: 0s
-        register-health-indicator: true
+        limitForPeriod: 10
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0s
+        registerHealthIndicator: true
+
+# Scheduled Tasks Configuration
+scheduling:
+  enabled: true
+  cleanup:
+    old-audit-logs:
+      enabled: true
+      cron: "0 0 2 * * ?" # Daily at 2 AM
+      retention-days: 90
+    expired-tokens:
+      enabled: true
+      cron: "0 0 1 * * ?" # Daily at 1 AM
+    rate-limit-reset:
+      enabled: true
+      cron: "0 0 * * * ?" # Hourly
 
 # Sleuth Configuration
 spring.sleuth:

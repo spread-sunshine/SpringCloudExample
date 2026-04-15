@@ -4,34 +4,59 @@ services:
   # Example microservice
   microservice-template:
     build: .
-    container_name: microservice-template
+    container_name: ${APP_NAME:-microservice-template}
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://${EUREKA_HOST:-eureka}:${EUREKA_PORT:-8761}/eureka/
       - SPRING_CLOUD_CONFIG_ENABLED=false
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-microservice_db}
+      - DB_USERNAME=${DB_USERNAME:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-rabbitmq}
+      - RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - KAFKA_HOST=${KAFKA_HOST:-kafka}
+      - KAFKA_PORT=${KAFKA_PORT:-9092}
+      - JWT_SECRET=${JWT_SECRET:-change-this-to-a-strong-secret-key-with-at-least-256-bits}
+      - API_KEYS=${API_KEYS:-test-api-key-1:ROLE_USER,ROLE_ADMIN:Test Client 1;test-api-key-2:ROLE_USER:Test Client 2}
     depends_on:
-      - eureka
+      eureka:
+        condition: service_healthy
     networks:
       - microservice-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   # Eureka Server (Service Discovery)
   eureka:
-    image: springcloud/eureka
-    container_name: eureka-server
+    image: springcloud/eureka:latest
+    container_name: ${EUREKA_HOST:-eureka}-server
     ports:
-      - "8761:8761"
+      - "${EUREKA_PORT:-8761}:8761"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
     networks:
       - microservice-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # Config Server (optional)
   config-server:
-    image: springcloud/config-server
+    image: springcloud/config-server:latest
     container_name: config-server
     ports:
       - "8888:8888"
@@ -46,15 +71,16 @@ services:
 
   # Gateway (optional)
   gateway:
-    image: springcloud/gateway
+    image: springcloud/gateway:latest
     container_name: gateway
     ports:
       - "8081:8081"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:8761/eureka/
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://${EUREKA_HOST:-eureka}:${EUREKA_PORT:-8761}/eureka/
     depends_on:
-      - eureka
+      eureka:
+        condition: service_healthy
     networks:
       - microservice-network
     restart: unless-stopped
@@ -64,33 +90,43 @@ services:
     image: postgres:14-alpine
     container_name: postgres
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     environment:
-      - POSTGRES_DB=microservice_db
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=${DB_NAME:-microservice_db}
+      - POSTGRES_USER=${DB_USERNAME:-admin}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secret}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - microservice-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis (example cache)
   redis:
     image: redis:7-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     networks:
       - microservice-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Prometheus (monitoring)
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
@@ -102,9 +138,9 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     volumes:
       - grafana-data:/var/lib/grafana
     networks:
