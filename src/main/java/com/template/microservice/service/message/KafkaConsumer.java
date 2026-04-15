@@ -26,8 +26,9 @@ public class KafkaConsumer {
             Acknowledgment ack) {
         
         try {
-            log.info("Received user event from topic '{}', partition {}, offset {}: {}",
-                    topic, partition, offset, message);
+            log.info("Received user event from topic '{}', partition {}, offset {}, type={}",
+                    topic, partition, offset,
+                    message != null ? message.getClass().getSimpleName() : "null");
             
             // Process the message
             processUserEvent(message);
@@ -38,8 +39,10 @@ public class KafkaConsumer {
                     topic, partition, offset);
             
         } catch (Exception e) {
-            log.error("Error processing message from topic '{}', partition {}, offset {}: {}",
-                    topic, partition, offset, message, e);
+            log.error("Error processing user event from topic '{}', partition {}, offset {}, type={}: {}",
+                    topic, partition, offset,
+                    message != null ? message.getClass().getSimpleName() : "null",
+                    e.getMessage(), e);
             // Don't acknowledge, let it go to DLQ or retry
         }
     }
@@ -54,8 +57,9 @@ public class KafkaConsumer {
             Acknowledgment ack) {
         
         try {
-            log.info("Received order event: key={}, value={}, topic={}, partition={}, offset={}",
-                    record.key(), record.value(), record.topic(), record.partition(), record.offset());
+            log.info("Received order event: key={}, topic={}, partition={}, offset={}, type={}",
+                    record.key(), record.topic(), record.partition(), record.offset(),
+                    record.value() != null ? record.value().getClass().getSimpleName() : "null");
             
             // Process the order event
             processOrderEvent(record.value());
@@ -80,8 +84,10 @@ public class KafkaConsumer {
             @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
             @Header(KafkaHeaders.OFFSET) long offset) {
         
-        log.error("Received dead letter message from topic '{}', partition {}, offset {}: {}",
-                topic, partition, offset, message);
+        log.error("Received dead letter from topic '{}', partition {}, offset {}, type={}",
+                topic, partition, offset,
+                message != null ? message.getClass().getSimpleName() : "null");
+        log.debug("Dead letter message content: {}", message);
         
         // Handle dead letter (alert, store, analyze)
         handleDeadLetter(message, topic, partition, offset);
@@ -99,8 +105,9 @@ public class KafkaConsumer {
 
     private void handleDeadLetter(Object message, String topic, int partition, long offset) {
         // Implement dead letter handling logic
-        log.warn("Handling dead letter: topic={}, partition={}, offset={}, message={}",
-                topic, partition, offset, message);
+        log.warn("Handling dead letter: topic={}, partition={}, offset={}, type={}",
+                topic, partition, offset,
+                message != null ? message.getClass().getSimpleName() : "null");
         // Could send alert, store to database for analysis
     }
 }

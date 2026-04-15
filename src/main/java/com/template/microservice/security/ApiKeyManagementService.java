@@ -215,10 +215,11 @@ public class ApiKeyManagementService {
                 .collect(Collectors.toList());
         
         if (!expiringKeys.isEmpty()) {
-            log.warn("Found {} API keys expiring within {} days", expiringKeys.size(), warningDays);
-            expiringKeys.forEach(keyInfo -> 
-                log.warn("Key for client '{}' expires on {}", 
-                        keyInfo.getClientName(), keyInfo.getExpiresAt()));
+            String clientNames = expiringKeys.stream()
+                    .map(ApiKeyInfo::getClientName)
+                    .collect(Collectors.joining(", "));
+            log.warn("Found {} API keys expiring within {} days: {}",
+                    expiringKeys.size(), warningDays, clientNames);
             
             // In production, send email or Slack notifications here
         }

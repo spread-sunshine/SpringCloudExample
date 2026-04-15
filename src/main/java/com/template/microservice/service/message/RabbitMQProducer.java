@@ -19,7 +19,8 @@ public class RabbitMQProducer {
             rabbitTemplate.convertAndSend(routingKey, message);
             log.debug("Message sent to routing key '{}': {}", routingKey, message);
         } catch (Exception e) {
-            log.error("Failed to send message to routing key '{}': {}", routingKey, message, e);
+            log.error("Failed to send message to routing key '{}': {}", routingKey,
+                    message != null ? message.getClass().getSimpleName() : "null", e);
             throw new RuntimeException("Failed to send message", e);
         }
     }
@@ -34,7 +35,8 @@ public class RabbitMQProducer {
             });
             log.debug("Message with headers sent to routing key '{}': {}", routingKey, message);
         } catch (Exception e) {
-            log.error("Failed to send message with headers to routing key '{}': {}", routingKey, message, e);
+            log.error("Failed to send message with headers to routing key '{}': {}", routingKey,
+                    message != null ? message.getClass().getSimpleName() : "null", e);
             throw new RuntimeException("Failed to send message with headers", e);
         }
     }
@@ -48,7 +50,8 @@ public class RabbitMQProducer {
             log.debug("Delayed message sent to routing key '{}' with delay {}ms: {}", 
                     routingKey, delayMillis, message);
         } catch (Exception e) {
-            log.error("Failed to send delayed message to routing key '{}': {}", routingKey, message, e);
+            log.error("Failed to send delayed message to routing key '{}': {}", routingKey,
+                    message != null ? message.getClass().getSimpleName() : "null", e);
             throw new RuntimeException("Failed to send delayed message", e);
         }
     }

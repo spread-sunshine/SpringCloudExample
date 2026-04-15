@@ -80,7 +80,7 @@ public class DataInitializer {
                     .roles(Set.of(adminRole, userRole))
                     .build();
             userRepository.save(admin);
-            log.info("管理员账号创建成功 - 用户名: {}, 密码: admin123, 角色: ROLE_ADMIN, ROLE_USER",
+            log.info("管理员账号创建成功 - 用户名: {}, 角色: ROLE_ADMIN, ROLE_USER",
                     adminUsername);
         }
     }
@@ -103,7 +103,7 @@ public class DataInitializer {
                     .roles(Set.of(userRole))
                     .build();
             userRepository.save(user);
-            log.info("普通用户账号创建成功 - 用户名: {}, 密码: user123, 角色: ROLE_USER",
+            log.info("普通用户账号创建成功 - 用户名: {}, 角色: ROLE_USER",
                     userUsername);
         }
     }

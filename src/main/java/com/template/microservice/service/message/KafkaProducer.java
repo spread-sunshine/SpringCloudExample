@@ -28,7 +28,8 @@ public class KafkaProducer {
                         result.getRecordMetadata().partition(),
                         result.getRecordMetadata().offset());
             } else {
-                log.error("Failed to send message to topic '{}': {}", topic, message, ex);
+                log.error("Failed to send message to topic '{}': {}", topic,
+                        message != null ? message.getClass().getSimpleName() : "null", ex);
             }
         });
         
@@ -48,7 +49,8 @@ public class KafkaProducer {
                         result.getRecordMetadata().offset());
             } else {
                 log.error("Failed to send message to topic '{}' with key '{}': {}", 
-                        topic, key, message, ex);
+                        topic, key,
+                        message != null ? message.getClass().getSimpleName() : "null", ex);
             }
         });
         
@@ -69,7 +71,8 @@ public class KafkaProducer {
                     successCallback.run();
                 }
             } else {
-                log.error("Failed to send message with callback to topic '{}': {}", topic, message, ex);
+                log.error("Failed to send message with callback to topic '{}': {}", topic,
+                        message != null ? message.getClass().getSimpleName() : "null", ex);
                 if (failureCallback != null) {
                     failureCallback.run();
                 }

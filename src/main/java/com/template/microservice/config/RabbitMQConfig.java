@@ -108,7 +108,9 @@ public class RabbitMQConfig {
         });
         
         rabbitTemplate.setReturnsCallback(returned -> {
-            log.error("Message returned: {}", returned.toString());
+            log.error("Message returned, replyCode={}, replyText={}, exchange={}, routingKey={}",
+                    returned.getReplyCode(), returned.getReplyText(),
+                    returned.getExchange(), returned.getRoutingKey());
         });
         
         return rabbitTemplate;

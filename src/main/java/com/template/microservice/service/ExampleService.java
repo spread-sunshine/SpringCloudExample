@@ -27,7 +27,7 @@ public class ExampleService {
     }
 
     public ExampleResponse createExample(ExampleRequest request) {
-        log.info("Creating example with data: {}", request);
+        log.info("Creating example, messageId={}", request != null ? request.getMessage() : "null");
         // Simulate creation
         return ExampleResponse.builder()
                 .id("generated-" + System.currentTimeMillis())
