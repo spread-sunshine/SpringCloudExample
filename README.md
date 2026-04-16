@@ -1,134 +1,156 @@
 # Spring Cloud Microservice Template
 
-A reusable template for Spring Cloud microservices with comprehensive security including API key authentication, JWT, role-based access control, and full observability stack.
+A reusable **multi-module** microservice template following industry best practice:
+**Gateway (WebFlux/reactive) + Service (Servlet/JPA)** separation.
+Comprehensive security including API key authentication, JWT, role-based access control,
+and full observability stack.
+
+## Architecture Overview
+
+```
+                        ┌─────────────────────────────┐
+                        │      External Clients        │
+                        │  (Browser / Frontend / API)  │
+                        └──────────┬──────────────────┘
+                                   │ :8081
+                                   ▼
+┌─────────────────────────────────────────────────────────┐
+│              microservice-gateway (WebFlux)             │
+│  Port: 8081 | Reactive Stack | Independent Process     │
+│                                                          │
+│  ├── GlobalCorsConfig        CORS configuration          │
+│  ├── GatewayRouteConfig      Route: /api/** → lb://service│
+│  ├── RequestLoggingFilter    Request/response logging    │
+│  ├── RateLimiterGlobalFilter In-memory rate limiting     │
+│  └── GatewayErrorHandler     JSON error responses        │
+└──────────────────┬──────────────────────────────────────┘
+                   │ lb://microservice-template (Eureka)
+                   │ OR http://localhost:8080 (dev static)
+                   ▼
+┌─────────────────────────────────────────────────────────┐
+│           microservice-service (Servlet + JPA)          │
+│  Port: 8080 | Servlet Stack | Business Logic            │
+│                                                          │
+│  ├── SecurityConfig         JWT + API Key auth          │
+│  ├── AuthController          /api/auth/* endpoints       │
+│  ├── ExampleController        /api/example/* endpoints   │
+│  ├── RateLimitService         Redis-aware rate limiting   │
+│  ├── Service layer            JPA/Hibernate/Redis/Kafka  │
+│  └── ErrorController          JSON error handler          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture?
+
+| Approach | Description | Verdict |
+|----------|-------------|---------|
+| **Option A**: Embed Gateway | `spring-boot-starter-gateway` conflicts with `spring-boot-starter-web` (WebFlux vs Servlet) | **Not possible** |
+| **Option B**: Migrate all to WebFlux | Rewrite ~60 files (JPA→R2DBC, Servlet Filters→WebFilters, etc.) | **High risk, high cost** |
+| **Option C (chosen)**: Split modules | Gateway = WebFlux (new), Service = Servlet (unchanged) | **Industry standard, minimal change** |
+
+> See [WebFlux vs Servlet.md](./WebFlux%20vs%20Servlet.md) for detailed comparison.
+
+---
 
 ## Features
 
 - **Spring Boot 3.2.5** with **Spring Cloud 2023.0.3**
-- **Dual Authentication**: API Key + JWT token support
+- **Multi-Module Architecture**: Gateway (reactive) + Service (servlet)
+- **Dual Authentication**: API Key + JWT token support (in Service module)
 - **Role-Based Access Control**: Fine-grained authorization with Spring Security
 - **API Key Management**: Full lifecycle management (creation, validation, rotation, revocation)
-- **Security**: Spring Security with OAuth2 resource server, CORS, CSRF protection, security headers
-- **Service Discovery**: Netflix Eureka client integration (optional in dev)
-- **Configuration Management**: Spring Cloud Config client support
-- **API Gateway**: Spring Cloud Gateway support
-- **Circuit Breaker**: Resilience4j with bulkhead, retry, rate limiting
+- **Spring Cloud Gateway**: Routing, load balancing, circuit breaker, rate limiting
+- **Service Discovery**: Netflix Eureka client integration
+- **Circuit Breaker**: Resilience4j with bulkhead, retry, rate limiting (Gateway + Service)
 - **Distributed Tracing**: Micrometer Tracing with Zipkin integration
 - **Declarative REST Client**: OpenFeign
-- **API Documentation**: OpenAPI 3 with Swagger UI
-- **Actuator Endpoints**: Health, metrics, info, Prometheus exporter
-- **Database Support**: PostgreSQL (production), H2 (development), Spring Data JPA, Flyway migrations
-- **Caching**: Redis with Spring Cache abstraction (graceful degradation when unavailable)
+- **API Documentation**: OpenAPI 3 with Swagger UI (Service module)
+- **Database Support**: PostgreSQL (production), H2 (development), Spring Data JPA, Flyway
+- **Caching**: Redis + Caffeine with graceful degradation
 - **Message Queues**: RabbitMQ and Kafka support
-- **Logging**: Structured JSON logging with Logstash encoder
 - **Monitoring**: Prometheus metrics, Grafana dashboards, custom health indicators
-- **Containerization**: Multi-stage Dockerfile, docker-compose for full stack
-- **Kubernetes**: Deployment manifests for k8s
-- **Testing**: Comprehensive unit, integration, and security tests with Testcontainers
-- **Multi-environment**: dev, prod profiles with environment-specific configurations
+- **Containerization**: Multi-stage Dockerfiles per module, docker-compose orchestration
 
 ## Technology Stack
 
-- **Java 17**, **Maven**, **Spring Boot 3**, **Spring Cloud**
-- **Security**: Spring Security, JWT (jjwt), OAuth2, API Key authentication
-- **Database**: PostgreSQL, H2, Spring Data JPA, Flyway
-- **Cache**: Redis, Caffeine
-- **Messaging**: RabbitMQ, Kafka
-- **Monitoring**: Micrometer, Prometheus, Grafana, Zipkin
-- **Documentation**: Springdoc OpenAPI
-- **Testing**: JUnit 5, Mockito, Testcontainers, Spring Boot Test
-- **Container**: Docker, Docker Compose, Kubernetes
+| Module | Stack | Key Components |
+|--------|-------|---------------|
+| **Gateway** | WebFlux (Reactive) | Spring Cloud Gateway, Reactor Netty, LoadBalancer |
+| **Service** | Servlet (MVC) | Spring MVC, Spring Data JPA, Spring Security, Redis, Kafka, RabbitMQ |
+| **Shared** | Java 17, Maven, Spring Boot 3, Spring Cloud 2023.0.3 | Micrometer, Zipkin/Brave |
 
 ## Project Structure
 
 ```
-src/main/java/com/template/microservice/
-├── Application.java                  # Main Spring Boot application
-├── config/                           # Configuration classes
-│   ├── SecurityConfig.java           # Spring Security configuration
-│   ├── SecurityHeadersConfig.java    # Security headers (HSTS, CSP)
-│   ├── MetricsConfig.java            # Micrometer metrics configuration
-│   ├── RedisConfig.java              # Redis cache configuration
-│   ├── RabbitMQConfig.java           # RabbitMQ configuration
-│   ├── KafkaConfig.java              # Kafka configuration
-│   ├── CacheConfig.java              # Caching configuration
-│   ├── FeignConfig.java              # OpenFeign configuration
-│   ├── OpenApiConfig.java            # OpenAPI configuration
-│   └── SwaggerConfig.java            # Swagger UI configuration
-├── controller/                       # REST controllers
-│   ├── ErrorController.java          # Custom error handler (JSON responses)
-│   ├── ExampleController.java        # Example REST endpoints
-│   └── AuthController.java           # Authentication endpoints
-├── service/                          # Business services
-│   ├── ExampleService.java           # Example business logic
-│   ├── AuthService.java              # Authentication service
-│   ├── RateLimitService.java         # Rate limiting service (Redis-aware)
-│   ├── MetricsService.java           # Custom metrics service
-│   └── message/                      # Message queue services
-│       ├── RabbitMQProducer.java
-│       ├── RabbitMQConsumer.java
-│       ├── KafkaProducer.java
-│       └── KafkaConsumer.java
-├── security/                         # Security components
-│   ├── ApiKeyAuthenticationFilter.java    # API key authentication filter
-│   ├── ApiKeyManagementService.java       # API key lifecycle management
-│   ├── ApiKeyValidator.java               # API key validation interface
-│   ├── DatabaseApiKeyValidator.java       # Database-backed validator
-│   ├── SimpleApiKeyValidator.java         # In-memory validator
-│   ├── ApiKeyValidationResult.java        # Validation result DTO
-│   ├── ApiKeyAuthenticationToken.java     # Authentication token
-│   ├── JwtTokenProvider.java              # JWT token generation/validation
-│   ├── JwtAuthenticationFilter.java       # JWT authentication filter
-│   ├── JwtBlacklistService.java           # JWT blacklist management
-│   ├── UserDetailsServiceImpl.java        # User details service
-│   └── AuditService.java                  # Security audit logging
-├── repository/                       # Data access layer
-│   ├── UserRepository.java           # User repository
-│   └── RoleRepository.java           # Role repository
-├── model/                            # Data models
-│   ├── entity/                       # JPA entities
-│   │   ├── User.java
-│   │   └── Role.java
-│   ├── dto/                          # Data transfer objects
-│   │   ├── LoginRequest.java
-│   │   ├── LoginResponse.java
-│   │   ├── RegisterRequest.java
-│   │   ├── RefreshTokenRequest.java
-│   │   └── ApiResponse.java
-│   ├── ExampleRequest.java
-│   └── ExampleResponse.java
-├── client/                           # Feign clients
-│   └── ExampleFeignClient.java
-├── filter/                           # HTTP filters
-│   ├── RequestLoggingFilter.java     # Request logging
-│   └── RateLimitFilter.java          # Rate limiting filter (excludes swagger)
-├── aspect/                           # AOP aspects
-│   └── ApiResponseAspect.java        # Standardized API response wrapping
-├── exception/                        # Exception handling
-│   ├── GlobalExceptionHandler.java   # Global exception handler (@RestControllerAdvice)
-│   ├── BusinessException.java        # Business exception
-│   └── ErrorCode.java                # Error codes
-├── health/                           # Custom health indicators
-│   ├── DatabaseHealthIndicator.java
-│   └── RedisHealthIndicator.java
-└── util/                             # Utilities
-    ├── ValidationUtils.java
-    └── IdGenerator.java
-
-src/test/java/com/template/microservice/          # Test suite
-├── controller/                       # Controller tests
-├── service/                          # Service tests
-├── security/                         # Security tests
-│   ├── ApiKeyAuthenticationFilterTest.java
-│   ├── ApiKeyManagementServiceTest.java
-│   ├── DatabaseApiKeyValidatorTest.java
-│   ├── AuditServiceTest.java
-│   ├── JwtTokenProviderTest.java
-│   └── JwtBlacklistServiceTest.java
-└── integration/                      # Integration tests
-    ├── BaseIntegrationTest.java
-    ├── ExampleControllerIntegrationTest.java
-    └── AuthIntegrationTest.java
+TestSprintCloud/                          # Root (parent POM, packaging=pom)
+├── pom.xml                               # Parent POM: dependency management + build plugins
+│                                          # Modules: service, gateway
+│
+├── service/                              # ★ Business Service Module (Servlet + JPA)
+│   ├── pom.xml                           #   All original dependencies preserved
+│   └── src/
+│       ├── main/java/com/template/microservice/
+│       │   ├── Application.java          #     @SpringBootApplication :8080
+│       │   ├── config/
+│       │   │   ├── SecurityConfig.java   #     Servlet Security filter chain
+│       │   │   ├── MetricsConfig.java    #     23+ custom Micrometer metrics
+│       │   │   ├── CacheConfig.java      #     Caffeine + Redis cache
+│       │   │   ├── OpenApiConfig.java    #     Swagger/OpenAPI config
+│       │   │   ├── KafkaConfig.java      #     Kafka producer/consumer
+│       │   │   ├── RabbitMQConfig.java   #     RabbitMQ config
+│       │   │   └── ...
+│       │   ├── controller/
+│       │   │   ├── AuthController.java   #     POST /api/auth/{login,register,...}
+│       │   │   ├── ExampleController.java#     GET/POST /api/example/*
+│       │   │   └── ErrorController.java  #     Custom JSON error handler
+│       │   ├── security/
+│       │   │   ├── JwtAuthenticationFilter.java
+│       │   │   ├── ApiKeyAuthenticationFilter.java
+│       │   │   ├── JwtTokenProvider.java
+│       │   │   └── ... (10 security classes)
+│       │   ├── service/
+│       │   │   ├── AuthService.java
+│       │   │   ├── RateLimitService.java #     Redis-aware, graceful degradation
+│       │   │   └── message/              #     KafkaConsumer, RabbitMQProducer...
+│       │   ├── filter/
+│       │   │   ├── RequestLoggingFilter.java
+│       │   │   └── RateLimitFilter.java  #     Excludes swagger/static paths
+│       │   ├── model/entity/dto/        #     User, Role, LoginRequest, etc.
+│       │   ├── repository/              #     UserRepository, RoleRepository
+│       │   ├── exception/               #     GlobalExceptionHandler
+│       │   ├── aspect/                  #     ApiResponseAspect
+│       │   ├── client/                  #     ExampleFeignClient
+│       │   ├── health/                  #     DatabaseHealthIndicator
+│       │   └── util/                    #     IdGenerator, SecurityUtils
+│       └── main/resources/
+│           ├── application.yml          #     Base config
+│           ├── application-dev.yml      #     Dev: H2, Caffeine, no Eureka
+│           └── application-prod.yml     #     Prod: PostgreSQL, full stack
+│
+├── gateway/                             # ★ Gateway Module (WebFlux, NEW)
+│   ├── pom.xml                           #   spring-cloud-starter-gateway + loadbalancer
+│   └── src/
+│       ├── main/java/com/template/gateway/
+│       │   ├── GatewayApplication.java  #     @SpringBootApplication :8081
+│       │   ├── config/
+│       │   │   ├── GatewayRouteConfig.java   #   RouteLocator: /api/** → lb://service
+│       │   │   └── GlobalCorsConfig.java     #   CORS for reactive stack
+│       │   └── filter/
+│       │       ├── RequestLoggingFilter.java  #   Global request logging
+│       │       ├── RateLimiterGlobalFilter.java # In-memory sliding window
+│       │       └── GatewayErrorHandler.java    #   JSON error via onErrorResume
+│       └── main/resources/
+│           ├── application.yml          #     Default: Eureka discovery routing
+│           ├── application-dev.yml      #     Dev: static routes to localhost:8080
+│           └── application-prod.yml     #     Prod: Circuit Breaker + Retry
+│
+├── Dockerfile.service                   # Multi-stage build for service module
+├── Dockerfile.gateway                   # Multi-stage build for gateway module
+├── docker-compose.yml                   # Full orchestration: gateway → service + infra
+├── docker-compose.prod.yml              # Production compose override
+├── k8s/                                 # Kubernetes deployment manifests
+├── prometheus/ grafana/                 # Monitoring dashboards & alerts
+└── WebFlux vs Servlet.md                # Architecture decision document
 ```
 
 ## Quick Start
@@ -137,280 +159,230 @@ src/test/java/com/template/microservice/          # Test suite
 
 - Java 17 or higher
 - Maven 3.6+
-- Docker and Docker Compose (optional, for full stack)
-- PostgreSQL (optional, H2 used by default in dev)
+- Docker and Docker Compose (optional, for full infrastructure)
 
-### Building and Running
+### Building
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd TestSprintCloud
-   ```
+```bash
+# Build all modules (parent + service + gateway)
+mvn clean package
 
-2. **Build the project**:
-   ```bash
-   mvn clean package
-   ```
+# Build only specific module
+mvn clean package -pl service
+mvn clean package -pl gateway
+```
 
-3. **Run locally (development profile)**:
-   ```bash
-   mvn spring-boot:run
-   ```
-   
-   > **Note**: The development profile (`dev`) is designed to work **without external dependencies**.
-   > Eureka, Redis, RabbitMQ, and Kafka are all disabled by default.
-   > Rate limiting gracefully degrades when Redis is unavailable.
-   > The application will start successfully using the H2 in-memory database.
+### Running
 
-4. **Access endpoints**:
-   - API: `http://localhost:8080/api/example/{id}`
-   - Authentication: `http://localhost:8080/api/auth/login`
-   - Swagger UI: `http://localhost:8080/swagger-ui.html`
-   - Actuator Health: `http://localhost:8080/manage/health`
-   - Prometheus Metrics: `http://localhost:8080/manage/prometheus`
+#### Option 1: Service Only (Development)
+
+Run the business service directly — ideal for development without Gateway:
+
+```bash
+# Start service on port 8080 (dev profile, H2 database, no external deps)
+mvn spring-boot:run -pl service -Dspring-boot.run.profiles=dev
+```
+
+Access:
+| Endpoint | URL |
+|----------|-----|
+| Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| Actuator Health | `http://localhost:8080/manage/health` |
+| API (auth required) | `http://localhost:8080/api/example/public` |
+
+#### Option 2: Gateway + Service (Development)
+
+Run both modules together for a realistic microservices setup:
+
+```bash
+# Terminal 1: Start service on port 8080
+mvn spring-boot:run -pl service -Dspring-boot.run.profiles=dev
+
+# Terminal 2: Start gateway on port 8081 (static route to localhost:8080)
+mvn spring-boot:run -pl gateway -Dspring-boot.run.profiles=dev
+```
+
+All traffic goes through Gateway at port 8081:
+
+| Via Gateway (port 8081) | Direct (port 8080) |
+|--------------------------|---------------------|
+| `http://localhost:8081/api/**` | `http://localhost:8080/api/**` |
+| `http://localhost:8081/swagger-ui.html` | `http://localhost:8080/swagger-ui.html` |
+| `http://localhost:8081/manage/health` | `http://localhost:8080/manage/health` |
+
+#### Option 3: Full Docker Compose (Production-like)
+
+```bash
+# Build and start all services (Gateway + Service + Infrastructure)
+docker compose up --build
+
+# Or just the core two services
+docker compose up --build microservice-gateway microservice-template postgres redis
+```
 
 ### Using API Key Authentication
 
-1. **Default API keys** (configured in `application-dev.yml`):
-   - `test-api-key-1` with roles `ROLE_USER,ROLE_ADMIN`
-   - `test-api-key-2` with role `ROLE_USER`
+```bash
+# Default keys configured in application-dev.yml:
+#   test-api-key-1 → roles: ROLE_USER, ROLE_ADMIN
+#   test-api-key-2 → roles: ROLE_USER
 
-2. **Make authenticated requests**:
-   ```bash
-   # Using X-API-Key header
-   curl -H "X-API-Key: test-api-key-1" http://localhost:8080/api/example/1
-   
-   # Using Authorization header
-   curl -H "Authorization: ApiKey test-api-key-1" http://localhost:8080/api/example/1
-   ```
+# Through Gateway
+curl -H "X-API-Key: test-api-key-1" http://localhost:8081/api/example/1
+
+# Direct to Service
+curl -H "X-API-Key: test-api-key-1" http://localhost:8080/api/example/1
+```
 
 ## Configuration
 
 ### Profiles
 
-| Profile | Description | External Dependencies |
-|---------|-------------|----------------------|
-| **dev** | Development (default) | None required - H2 in-memory DB, Eureka disabled, Redis optional |
-| **prod** | Production | PostgreSQL, Eureka cluster, Redis, RabbitMQ, Kafka, Zipkin |
+| Profile | Gateway Behavior | Service Behavior | External Dependencies |
+|---------|------------------|------------------|----------------------|
+| **dev** (default) | Static route to `localhost:8080`, Eureka disabled, rate limiter disabled | H2 in-memory DB, Caffeine cache, Eureka disabled, debug logging | None required |
+| **prod** | Eureka discovery (`lb://service`), circuit breaker, retry, rate limiting (50 req/s) | PostgreSQL, Redis cache, RabbitMQ, Kafka, full observability | PostgreSQL, Eureka, Redis, RabbitMQ, Kafka, Zipkin |
 
-Activate a profile:
+Activate profile:
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=prod
+mvn spring-boot:run -pl service -Dspring-boot.run.profiles=prod
+mvn spring-boot:run -pl gateway -Dspring-boot.run.profiles=prod
 ```
 
 ### Key Configuration Files
 
-| File | Purpose |
-|------|---------|
-| `application.yml` | Base configuration (shared across all profiles) |
-| `application-dev.yml` | Development settings - H2 DB, debug logging, no external deps |
-| `application-prod.yml` | Production settings - PostgreSQL, optimized, full observability |
+| File | Location | Purpose |
+|------|----------|---------|
+| Root POM | `pom.xml` | Parent aggregator: shared dependency versions, plugin management |
+| Service base config | `service/src/main/resources/application.yml` | Shared Spring config, server port, management endpoints |
+| Service dev config | `service/src/main/resources/application-dev.yml` | H2 DB, Caffeine cache, debug logging, no external deps |
+| Service prod config | `service/src/main/resources/application-prod.yml` | PostgreSQL, Redis, Kafka, full observability |
+| Gateway base config | `gateway/src/main/resources/application.yml` | Port 8081, reactive mode, discovery locator |
+| Gateway dev config | `gateway/src/main/resources/application-dev.yml` | Static routes to localhost:8080, no Eureka |
+| Gateway prod config | `gateway/src/main/resources/application-prod.yml` | Eureka discovery, circuit breaker, retry |
 
 ### Development Profile Highlights
 
-The `dev` profile is designed for standalone development:
-
-- **Eureka**: Disabled (`eureka.client.enabled=false`)
+**Service (`dev`)**:
+- **Eureka**: Disabled — runs independently
 - **Database**: H2 in-memory (no setup needed)
-- **Redis**: Configured but **optional** - rate limiting degrades gracefully when unavailable
-- **RabbitMQ/Kafka**: Configured but not required for startup
-- **Error Handling**: Custom `ErrorController` returns JSON instead of Whitelabel pages
-- **Swagger UI**: Excluded from rate limiting and tracing for easy development access
+- **Cache**: Caffeine local cache (no Redis needed)
+- **Redis**: Optional — only used by `RateLimitService`; graceful degradation when unavailable
+- **RabbitMQ/Kafka**: Commented out — uncomment when message queue needed
+- **Swagger UI**: Excluded from rate limiting for easy development access
 - **Actuator**: All endpoints exposed at `/manage/*`
 
-### Security Configuration
-
-Key security properties in `application-dev.yml`:
-
-```yaml
-security:
-  api:
-    keys: "test-api-key-1:ROLE_USER,ROLE_ADMIN:Test Client 1;test-api-key-2:ROLE_USER:Test Client 2"
-    validator: "database" # simple or database
-    key:
-      expiration:
-        days: 90
-      warning:
-        days: 7
-      length: 32
-      prefix: "sk_"
-  jwt:
-    secret: your-secret-key-change-in-production
-    expiration: 86400000 # 24 hours
-    blacklist:
-      enabled: true
-```
-
-### Database Configuration
-
-Development (H2):
-```yaml
-spring:
-  datasource:
-    url: jdbc:h2:mem:testdb
-    driver-class-name: org.h2.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-```
-
-Production (PostgreSQL):
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:microservice_db}
-    username: ${DB_USERNAME:admin}
-    password: ${DB_PASSWORD:secret}
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: validate
-  flyway:
-    enabled: true
-```
+**Gateway (`dev`)**:
+- **Eureka**: Disabled — uses static URL routes instead
+- **Routes**: All `/api/**`, `/manage/**`, `/swagger*` forwarded to `http://localhost:8080`
+- **Rate Limiting**: Disabled for development convenience
 
 ## Docker Support
 
-### Building Docker Image
+### Building Images
 
 ```bash
-docker build -t microservice-template:latest .
+# Build both module images
+docker compose build
+
+# Or build individually
+docker build -f Dockerfile.service -t microservice-service:latest .
+docker build -f Dockerfile.gateway -t microservice-gateway:latest .
 ```
 
-### Running with Docker Compose
-
-A comprehensive `docker-compose.yml` is provided with the full microservices stack:
+### Docker Compose Services
 
 | Service | Image | Port | Description |
 |---------|-------|------|-------------|
-| **microservice-template** | build | 8080 | This application |
-| **eureka** | springcloud/eureka | 8761 | Service discovery |
-| **config-server** | springcloud/config-server | 8888 | Configuration management |
-| **gateway** | springcloud/gateway | 8081 | API gateway routing |
-| **postgres** | postgres:14-alpine | 5432 | Database |
-| **redis** | redis:7-alpine | 6379 | Cache |
-| **rabbitmq** | rabbitmq:3-management-alpine | 5672 / 15672 | Message queue (+ mgmt UI) |
-| **kafka** | apache/kafka | 9092 / 9093 | Message streaming (+ JMX) |
+| **microservice-gateway** | build (Dockerfile.gateway) | 8081 | API Gateway — entry point, routes to services |
+| **microservice-template** | build (Dockerfile.service) | 8080 | Core business service (Servlet + JPA) |
+| **eureka** | springcloud/eureka | 8761 | Service discovery registry |
+| **config-server** | springcloud/config-server | 8888 | Centralized configuration |
+| **postgres** | postgres:14-alpine | 5432 | Production database |
+| **redis** | redis:7-alpine | 6379 | Cache + distributed rate limiting |
+| **rabbitmq** | rabbitmq:3-management-alpine | 5672 / 15672 | Message queue (+ management UI) |
+| **kafka** | apache/kafka | 9092 / 9093 | Event streaming (+ JMX) |
 | **zookeeper** | confluentinc/cp-zookeeper | 2181 | Kafka coordination |
 | **zipkin** | openzipkin/zipkin | 9411 | Distributed tracing UI |
-| **prometheus** | prom/prometheus | 9090 | Monitoring |
-| **grafana** | grafana/grafana | 3000 | Visualization |
+| **prometheus** | prom/prometheus | 9090 | Metrics collection |
+| **grafana** | grafana/grafana | 3000 | Visualization dashboard |
 
-Start all services:
+### Common Compose Commands
+
 ```bash
-docker-compose up -d
-```
+# Start everything
+docker compose up --build -d
 
-Check running containers:
-```bash
-docker-compose ps
-```
+# Start only core services (gateway + service + db + cache)
+docker compose up -d microservice-gateway microservice-template postgres redis
 
-Stop all services:
-```bash
-docker-compose down
-```
+# Add message queues
+docker compose up -d rabbitmq kafka zookeeper
 
-### Running Specific Services
+# View logs
+docker compose logs -f microservice-gateway
+docker compose logs -f microservice-template
 
-To run only the microservice with minimal dependencies:
-```bash
-docker-compose up -d microservice-template postgres redis
-```
-
-To run with message queues:
-```bash
-docker-compose up -d microservice-template postgres redis rabbitmq kafka zookeeper
-```
-
-### Production Docker Compose
-
-Use `docker-compose.prod.yml` for production deployment:
-```bash
-docker-compose -f docker-compose.prod.yml up -d
+# Stop everything
+docker compose down
 ```
 
 ## API Documentation
 
-OpenAPI documentation is automatically generated and available at:
+OpenAPI documentation is available on the **Service** module:
 
-- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
-- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
-- **OpenAPI YAML**: `http://localhost:8080/v3/api-docs.yaml`
-
-API documentation includes:
-- All REST endpoints with request/response schemas
-- Authentication requirements (API key, JWT)
-- Example requests and responses
-- Error response formats (JSON via custom `ErrorController`)
+| Resource | URL (via Gateway) | URL (Direct) |
+|----------|-------------------|--------------|
+| Swagger UI | `http://localhost:8081/swagger-ui.html` | `http://localhost:8080/swagger-ui.html` |
+| OpenAPI JSON | `http://localhost:8081/v3/api-docs` | `http://localhost:8080/v3/api-docs` |
+| OpenAPI YAML | `http://localhost:8081/v3/api-docs.yaml` | `http://localhost:8080/v3/api-docs.yaml` |
 
 ## Testing
 
 ### Running Tests
 
-Run all tests:
 ```bash
+# Test all modules
 mvn test
-```
 
-Run specific test class:
-```bash
-mvn test -Dtest=ApiKeyManagementServiceTest
-```
+# Test only service module
+mvn test -pl service
 
-Run integration tests (requires Docker for Testcontainers):
-```bash
-mvn verify
+# Test only gateway module
+mvn test -pl gateway
+
+# Run specific test class
+mvn test -pl service -Dtest=ApiKeyManagementServiceTest
+
+# Integration tests (requires Docker/Testcontainers)
+mvn verify -pl service
 ```
 
 ### Test Coverage
 
-- **Unit tests**: Service layer, security components, utilities
+- **Unit tests**: Service layer, security components, utilities (~12 test classes)
 - **Integration tests**: Controller endpoints with embedded database
-- **Security tests**: Authentication and authorization flows
-- **Testcontainers**: Database integration tests with PostgreSQL container
+- **Security tests**: Authentication and authorization flows (JWT, API Key)
 
 ## Monitoring and Observability
 
 ### Actuator Endpoints
 
-The following endpoints are exposed (dev profile):
+Both modules expose actuator endpoints under `/manage/`:
 
-| Endpoint | Description |
-|----------|-------------|
-| `/manage/health` | Application health (includes database, Redis) |
-| `/manage/info` | Application information |
-| `/manage/metrics` | Application metrics (JVM, HTTP, cache) |
-| `/manage/prometheus` | Prometheus metrics exporter |
-| `/manage/loggers` | Log levels configuration |
-| `/manage/env` | Environment properties |
-| `/manage/beans` | Spring beans |
-
-### Prometheus Metrics
-
-Custom metrics exposed:
-- `api_key_validation_total` - API key validation counters
-- `http_request_duration_seconds` - HTTP request latency
-- `jvm_memory_used` - JVM memory usage
-- `database_connections_active` - Database connection pool
-
-### Grafana Dashboards
-
-Pre-configured dashboards in `grafana/` directory:
-- Microservice Overview
-- API Performance
-- Database Metrics
-- JVM Monitoring
-
-Access Grafana at `http://localhost:3000` (admin/admin)
+| Endpoint | Service (8080) | Gateway (8081) |
+|----------|-----------------|----------------|
+| `/manage/health` | App health (DB, Redis) | Gateway health (routes) |
+| `/manage/info` | App info | Gateway info |
+| `/manage/metrics` | JVM, HTTP, cache metrics | Route/filter metrics |
+| `/manage/prometheus` | Prometheus exporter | Gateway metrics exporter |
+| `/manage/gateway/routes` | N/A | Dynamic route management |
 
 ### Distributed Tracing
 
-Zipkin distributed tracing configured:
-- Access Zipkin UI at `http://localhost:9411`
-- Trace all requests across services
-- View request latency breakdown
+Both Gateway and Service emit tracing spans to Zipkin:
+- Access Zipkin UI: `http://localhost:9411`
+- Trace flows: **Client → Gateway → Service → Database**
 
 ## Deployment
 
@@ -422,123 +394,68 @@ Kubernetes manifests are provided in `k8s/` directory:
 kubectl apply -f k8s/
 ```
 
-Includes:
-- Deployment with rolling updates
-- Service for internal communication
-- ConfigMap for configuration
-- Horizontal Pod Autoscaler
-- Ingress for external access
+Includes: Deployment, Service, ConfigMap, Secret, ServiceAccount, HPA, Ingress
 
-### Cloud Deployment
+### Adding New Microservices
 
-The application is cloud-ready with:
-- Externalized configuration
-- Health checks for load balancers
-- Graceful shutdown
-- Stateless design for horizontal scaling
-- Graceful degradation when external services are unavailable
+This template is designed to be extended:
 
-## Development Guidelines
-
-### Adding New Features
-
-1. **New REST endpoints**:
-   - Add controller in `controller` package
-   - Use `@RestController` and `@RequestMapping`
-   - Add OpenAPI annotations (`@Operation`, `@ApiResponse`)
-   - Implement proper error handling
-
-2. **New services**:
-   - Add service class in `service` package
-   - Use `@Service` annotation
-   - Inject dependencies via constructor
-   - Write unit tests with Mockito
-
-3. **New security components**:
-   - Extend existing authentication/authorization mechanisms
-   - Update `SecurityConfig` for new filters
-   - Add audit logging for security events
-
-### Best Practices
-
-- Use constructor injection (Lombok `@RequiredArgsConstructor`)
-- Validate inputs with `@Valid` and JSR-303 annotations
-- Use DTOs for API requests/responses
-- Implement proper error handling with `@RestControllerAdvice`
-- Use SLF4J for logging with appropriate levels
-- Write unit tests for business logic
-- Use profiles for environment-specific configuration
-- Follow secure coding practices (OWASP Top 10)
+1. **Add a new service module** under the parent POM
+2. **Register with Eureka** (or add static route in Gateway)
+3. **Update `GatewayRouteConfig.java`** to add routing rules
+4. **Update docker-compose.yml** if deploying locally
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Application won't start**:
+1. **Service won't start**:
    - Check Java version: `java -version` (must be 17+)
    - Check port availability: `netstat -an | findstr :8080`
-   - Check logs: `type logs\microservice-template-dev.log`
+   - Dev profile needs **no external dependencies** — H2 is embedded
 
-2. **Swagger UI returns 500 error**:
-   - Most likely caused by Redis being unreachable (rate limiter failure)
-   - The `RateLimitService` now degrades gracefully - if this persists,
-     check that `RateLimitFilter` excludes `/swagger*` paths
-   - Verify the `ErrorController` is returning JSON (not Whitelabel page)
+2. **Gateway won't start** (port conflict):
+   - Ensure port 8081 is free: `netstat -an | findstr :8081`
+   - Dev profile routes to `localhost:8080` — ensure Service is running first
 
-3. **API key authentication failing**:
-   - Verify API key format in configuration
-   - Check roles assigned to API key
-   - Ensure `security.api.validator` is set correctly
+3. **Swagger UI returns 500 error**:
+   - Most likely caused by Redis being unreachable (rate limiter)
+   - `RateLimitService` degrades gracefully — check `shouldNotFilter()` excludes swagger paths
+   - If using through Gateway, verify Gateway's static route includes `/swagger*`
 
-4. **Database connection issues**:
-   - Verify PostgreSQL is running (if using prod profile)
-   - Check connection string in configuration
-   - Verify credentials
-   - Dev profile uses H2 in-memory - no database needed
+4. **API key authentication failing**:
+   - Verify key format in `application-dev.yml` under `security.api.keys`
+   - Check roles assigned to each key
 
 5. **Redis connection errors in dev**:
-   - **This is expected behavior** in dev without Docker
-   - The application will still work - rate limiting degrades gracefully
-   - To enable full rate limiting: `docker-compose up -d redis`
+   - **Expected behavior** — app still works, rate limiting degrades gracefully
+   - To enable full rate limiting: `docker compose up -d redis`
 
-6. **Docker Compose issues**:
+6. **Multi-module build issues**:
+   - Always build from root: `mvn clean package` (not from submodule)
+   - Submodule inherits parent's dependency management automatically
+
+7. **Docker Compose issues**:
    - Ensure Docker daemon is running
-   - Check port conflicts
-   - View logs: `docker-compose logs microservice-template`
+   - Check port conflicts across all services (ports: 3000-9411)
+   - View logs: `docker compose logs <service-name>`
 
 ### Logs
 
-Logs are written to `logs/` directory and console:
-- Development: DEBUG level for detailed debugging
-- Production: INFO level with structured JSON format
-- Custom `ErrorController` outputs detailed exception info including stack traces
+| Location | Level | Content |
+|----------|-------|---------|
+| Console | DEV: DEBUG / PROD: INFO | Real-time output |
+| `logs/microservice-template-dev.log` | DEBUG | Service module log file |
+| Console (gateway) | DEBUG | Gateway request/response logs |
 
 ## License
 
-This project is provided under the MIT License.
+MIT License
 
 ## Contributing
-
-Contributions are welcome! Please:
 
 1. Fork the repository
 2. Create a feature branch
 3. Add tests for new functionality
-4. Ensure all tests pass
+4. Ensure `mvn clean compile && mvn test` passes
 5. Submit a pull request
-
-### Areas for Improvement
-
-- Additional authentication providers (OAuth2, SAML)
-- More comprehensive API key management UI
-- Advanced rate limiting strategies
-- Enhanced monitoring dashboards
-- Performance benchmarking
-- Security penetration testing
-
-## Support
-
-For issues and questions:
-- Check the Spring Cloud documentation
-- Review existing tests for usage examples
-- Create an issue in the repository with detailed description
