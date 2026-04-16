@@ -1,0 +1,41 @@
+# Development profile - Gateway runs independently
+# In dev mode, Eureka is optional; routes can use static URLs
+server:
+  port: 8081
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        # Direct route to local service (no Eureka required)
+        - id: microservice-template-local
+          uri: http://localhost:8080
+          predicates:
+            - Path=/api/**, /manage/**, /swagger-ui/**,
+              /v3/api-docs/**, /webjars/**, /swagger-ui.html
+          filters:
+            - StripPrefix=0
+        # Fallback route
+        - id: fallback
+          uri: http://localhost:8080
+          predicates:
+            - Path=/**
+
+# Disable Eureka in dev (use static routing above)
+eureka:
+  client:
+    enabled: false
+    fetch-registry: false
+    register-with-eureka: false
+
+# More lenient rate limiting in dev
+gateway:
+  rate-limit:
+    enabled: false
+    requests-per-second: 100
+
+logging:
+  level:
+    com.template.gateway: DEBUG
+    org.springframework.cloud.gateway: TRACE
+    reactor.netty: DEBUG

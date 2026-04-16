@@ -1,9 +1,40 @@
 version: '3.8'
 
 services:
-  # Example microservice
+  # ========== Gateway Service (WebFlux - Entry Point) ==========
+  # Routes external traffic to backend services.
+  # Dev: static routes to localhost:8080 | Prod: Eureka discovery
+  microservice-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: ${APP_NAME:-microservice}-gateway
+    ports:
+      - "${GATEWAY_PORT:-8081}:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://${EUREKA_HOST:-eureka}:${EUREKA_PORT:-8761}/eureka/
+    depends_on:
+      microservice-template:
+        condition: service_healthy
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f",
+             "http://localhost:8081/manage/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ========== Core Business Service (Servlet + JPA) ==========
+  # The main microservice with all business logic.
+  # Runs on port 8080; Gateway routes traffic here at /api/**
   microservice-template:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.service
     container_name: ${APP_NAME:-microservice-template}
     ports:
       - "${APP_PORT:-8080}:8080"
@@ -37,6 +68,8 @@ services:
       retries: 5
       start_period: 60s
 
+  # ========== Infrastructure Services ==========
+
   # Eureka Server (Service Discovery)
   eureka:
     image: springcloud/eureka:latest
@@ -69,23 +102,7 @@ services:
       - microservice-network
     restart: unless-stopped
 
-  # Gateway (optional)
-  gateway:
-    image: springcloud/gateway:latest
-    container_name: gateway
-    ports:
-      - "8081:8081"
-    environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://${EUREKA_HOST:-eureka}:${EUREKA_PORT:-8761}/eureka/
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - microservice-network
-    restart: unless-stopped
-
-  # PostgreSQL (example database)
+  # PostgreSQL (primary database)
   postgres:
     image: postgres:14-alpine
     container_name: postgres
@@ -106,7 +123,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis (example cache)
+  # Redis (cache + rate limiting)
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -195,7 +212,7 @@ services:
       - microservice-network
     restart: unless-stopped
 
-  # Prometheus (monitoring)
+  # Prometheus (metrics collection)
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -207,7 +224,7 @@ services:
       - microservice-network
     restart: unless-stopped
 
-  # Grafana (visualization)
+  # Grafana (visualization dashboard)
   grafana:
     image: grafana/grafana:latest
     container_name: grafana

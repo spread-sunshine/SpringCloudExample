@@ -1,0 +1,85 @@
+# Production profile - Gateway with full service discovery
+server:
+  port: ${GATEWAY_PORT:8081}
+
+spring:
+  cloud:
+    gateway:
+      # Production uses discovery-based routing (defined in Java config)
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 30s
+        pool:
+          type: elastic
+          max-idle-time: 15s
+          max-life-time: 60s
+      # Circuit breaker defaults
+      default-filters:
+        - name: CircuitBreaker
+          args:
+            name: fallbackCmd
+            fallbackUri: forward:/fallback
+      # Retry on specific failures
+      retry:
+        retries: 3
+        statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
+        methods: GET
+        backoff:
+          firstBackoff: 100ms
+          maxBackoff: 500s
+          factor: 2
+          basedOnPreviousValue: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULTZONE:http://eureka-server:8761/eureka/}
+    enabled: true
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 10
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.cloud.client.hostname}:${spring.application.name}:${server.port}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    metadata-map:
+      zone: ${ZONE:default}
+      version: ${APP_VERSION:1.0.0}
+
+# Stricter rate limiting in production
+gateway:
+  rate-limit:
+    enabled: true
+    requests-per-second: 50
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway,refresh
+      base-path: /manage
+  endpoint:
+    health:
+      show-details: when-authorized
+    gateway:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: prod
+    export:
+      prometheus:
+        enabled: true
+        step: 1m
+  tracing:
+    sampling:
+      probability: 0.1
+
+logging:
+  level:
+    com.template.gateway: INFO
+    org.springframework.cloud.gateway: INFO
+    reactor.netty.http: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} [%X{traceId:-},%X{spanId:-}] - %msg%n"
