@@ -9,7 +9,7 @@ A reusable template for Spring Cloud microservices with comprehensive security i
 - **Role-Based Access Control**: Fine-grained authorization with Spring Security
 - **API Key Management**: Full lifecycle management (creation, validation, rotation, revocation)
 - **Security**: Spring Security with OAuth2 resource server, CORS, CSRF protection, security headers
-- **Service Discovery**: Netflix Eureka client integration
+- **Service Discovery**: Netflix Eureka client integration (optional in dev)
 - **Configuration Management**: Spring Cloud Config client support
 - **API Gateway**: Spring Cloud Gateway support
 - **Circuit Breaker**: Resilience4j with bulkhead, retry, rate limiting
@@ -18,7 +18,7 @@ A reusable template for Spring Cloud microservices with comprehensive security i
 - **API Documentation**: OpenAPI 3 with Swagger UI
 - **Actuator Endpoints**: Health, metrics, info, Prometheus exporter
 - **Database Support**: PostgreSQL (production), H2 (development), Spring Data JPA, Flyway migrations
-- **Caching**: Redis with Spring Cache abstraction
+- **Caching**: Redis with Spring Cache abstraction (graceful degradation when unavailable)
 - **Message Queues**: RabbitMQ and Kafka support
 - **Logging**: Structured JSON logging with Logstash encoder
 - **Monitoring**: Prometheus metrics, Grafana dashboards, custom health indicators
@@ -56,12 +56,13 @@ src/main/java/com/template/microservice/
 │   ├── OpenApiConfig.java            # OpenAPI configuration
 │   └── SwaggerConfig.java            # Swagger UI configuration
 ├── controller/                       # REST controllers
+│   ├── ErrorController.java          # Custom error handler (JSON responses)
 │   ├── ExampleController.java        # Example REST endpoints
 │   └── AuthController.java           # Authentication endpoints
 ├── service/                          # Business services
 │   ├── ExampleService.java           # Example business logic
 │   ├── AuthService.java              # Authentication service
-│   ├── RateLimitService.java         # Rate limiting service
+│   ├── RateLimitService.java         # Rate limiting service (Redis-aware)
 │   ├── MetricsService.java           # Custom metrics service
 │   └── message/                      # Message queue services
 │       ├── RabbitMQProducer.java
@@ -100,11 +101,11 @@ src/main/java/com/template/microservice/
 │   └── ExampleFeignClient.java
 ├── filter/                           # HTTP filters
 │   ├── RequestLoggingFilter.java     # Request logging
-│   └── RateLimitFilter.java          # Rate limiting filter
+│   └── RateLimitFilter.java          # Rate limiting filter (excludes swagger)
 ├── aspect/                           # AOP aspects
 │   └── ApiResponseAspect.java        # Standardized API response wrapping
 ├── exception/                        # Exception handling
-│   ├── GlobalExceptionHandler.java   # Global exception handler
+│   ├── GlobalExceptionHandler.java   # Global exception handler (@RestControllerAdvice)
 │   ├── BusinessException.java        # Business exception
 │   └── ErrorCode.java                # Error codes
 ├── health/                           # Custom health indicators
@@ -156,14 +157,18 @@ src/test/java/com/template/microservice/          # Test suite
    ```bash
    mvn spring-boot:run
    ```
-   The application will start on `http://localhost:8080`
+   
+   > **Note**: The development profile (`dev`) is designed to work **without external dependencies**.
+   > Eureka, Redis, RabbitMQ, and Kafka are all disabled by default.
+   > Rate limiting gracefully degrades when Redis is unavailable.
+   > The application will start successfully using the H2 in-memory database.
 
 4. **Access endpoints**:
    - API: `http://localhost:8080/api/example/{id}`
    - Authentication: `http://localhost:8080/api/auth/login`
    - Swagger UI: `http://localhost:8080/swagger-ui.html`
-   - Actuator Health: `http://localhost:8080/actuator/health`
-   - Prometheus Metrics: `http://localhost:8080/actuator/prometheus`
+   - Actuator Health: `http://localhost:8080/manage/health`
+   - Prometheus Metrics: `http://localhost:8080/manage/prometheus`
 
 ### Using API Key Authentication
 
@@ -184,8 +189,10 @@ src/test/java/com/template/microservice/          # Test suite
 
 ### Profiles
 
-- **dev**: Development profile (default) - uses H2 in-memory database, debug logging
-- **prod**: Production profile - uses PostgreSQL, optimized settings
+| Profile | Description | External Dependencies |
+|---------|-------------|----------------------|
+| **dev** | Development (default) | None required - H2 in-memory DB, Eureka disabled, Redis optional |
+| **prod** | Production | PostgreSQL, Eureka cluster, Redis, RabbitMQ, Kafka, Zipkin |
 
 Activate a profile:
 ```bash
@@ -194,10 +201,23 @@ mvn spring-boot:run -Dspring-boot.run.profiles=prod
 
 ### Key Configuration Files
 
-- `application.yml`: Base configuration
-- `application-dev.yml`: Development-specific settings
-- `application-prod.yml`: Production-specific settings
-- `application-test.yml`: Test-specific settings
+| File | Purpose |
+|------|---------|
+| `application.yml` | Base configuration (shared across all profiles) |
+| `application-dev.yml` | Development settings - H2 DB, debug logging, no external deps |
+| `application-prod.yml` | Production settings - PostgreSQL, optimized, full observability |
+
+### Development Profile Highlights
+
+The `dev` profile is designed for standalone development:
+
+- **Eureka**: Disabled (`eureka.client.enabled=false`)
+- **Database**: H2 in-memory (no setup needed)
+- **Redis**: Configured but **optional** - rate limiting degrades gracefully when unavailable
+- **RabbitMQ/Kafka**: Configured but not required for startup
+- **Error Handling**: Custom `ErrorController` returns JSON instead of Whitelabel pages
+- **Swagger UI**: Excluded from rate limiting and tracing for easy development access
+- **Actuator**: All endpoints exposed at `/manage/*`
 
 ### Security Configuration
 
@@ -262,17 +282,20 @@ docker build -t microservice-template:latest .
 
 A comprehensive `docker-compose.yml` is provided with the full microservices stack:
 
-- **Microservice** (this application)
-- **Eureka Server** (service discovery)
-- **Config Server** (configuration management)
-- **API Gateway** (routing)
-- **PostgreSQL** (database)
-- **Redis** (caching)
-- **RabbitMQ** (message queue)
-- **Kafka** (message streaming)
-- **Prometheus** (monitoring)
-- **Grafana** (visualization)
-- **Zipkin** (distributed tracing)
+| Service | Image | Port | Description |
+|---------|-------|------|-------------|
+| **microservice-template** | build | 8080 | This application |
+| **eureka** | springcloud/eureka | 8761 | Service discovery |
+| **config-server** | springcloud/config-server | 8888 | Configuration management |
+| **gateway** | springcloud/gateway | 8081 | API gateway routing |
+| **postgres** | postgres:14-alpine | 5432 | Database |
+| **redis** | redis:7-alpine | 6379 | Cache |
+| **rabbitmq** | rabbitmq:3-management-alpine | 5672 / 15672 | Message queue (+ mgmt UI) |
+| **kafka** | apache/kafka | 9092 / 9093 | Message streaming (+ JMX) |
+| **zookeeper** | confluentinc/cp-zookeeper | 2181 | Kafka coordination |
+| **zipkin** | openzipkin/zipkin | 9411 | Distributed tracing UI |
+| **prometheus** | prom/prometheus | 9090 | Monitoring |
+| **grafana** | grafana/grafana | 3000 | Visualization |
 
 Start all services:
 ```bash
@@ -291,9 +314,14 @@ docker-compose down
 
 ### Running Specific Services
 
-To run only the microservice with dependencies:
+To run only the microservice with minimal dependencies:
 ```bash
 docker-compose up -d microservice-template postgres redis
+```
+
+To run with message queues:
+```bash
+docker-compose up -d microservice-template postgres redis rabbitmq kafka zookeeper
 ```
 
 ### Production Docker Compose
@@ -315,7 +343,7 @@ API documentation includes:
 - All REST endpoints with request/response schemas
 - Authentication requirements (API key, JWT)
 - Example requests and responses
-- Error response formats
+- Error response formats (JSON via custom `ErrorController`)
 
 ## Testing
 
@@ -349,13 +377,15 @@ mvn verify
 
 The following endpoints are exposed (dev profile):
 
-- `/actuator/health` - Application health (includes database, Redis)
-- `/actuator/info` - Application information
-- `/actuator/metrics` - Application metrics (JVM, HTTP, cache)
-- `/actuator/prometheus` - Prometheus metrics exporter
-- `/actuator/loggers` - Log levels configuration
-- `/actuator/env` - Environment properties
-- `/actuator/beans` - Spring beans
+| Endpoint | Description |
+|----------|-------------|
+| `/manage/health` | Application health (includes database, Redis) |
+| `/manage/info` | Application information |
+| `/manage/metrics` | Application metrics (JVM, HTTP, cache) |
+| `/manage/prometheus` | Prometheus metrics exporter |
+| `/manage/loggers` | Log levels configuration |
+| `/manage/env` | Environment properties |
+| `/manage/beans` | Spring beans |
 
 ### Prometheus Metrics
 
@@ -406,6 +436,7 @@ The application is cloud-ready with:
 - Health checks for load balancers
 - Graceful shutdown
 - Stateless design for horizontal scaling
+- Graceful degradation when external services are unavailable
 
 ## Development Guidelines
 
@@ -433,7 +464,7 @@ The application is cloud-ready with:
 - Use constructor injection (Lombok `@RequiredArgsConstructor`)
 - Validate inputs with `@Valid` and JSR-303 annotations
 - Use DTOs for API requests/responses
-- Implement proper error handling with `@ControllerAdvice`
+- Implement proper error handling with `@RestControllerAdvice`
 - Use SLF4J for logging with appropriate levels
 - Write unit tests for business logic
 - Use profiles for environment-specific configuration
@@ -446,19 +477,31 @@ The application is cloud-ready with:
 1. **Application won't start**:
    - Check Java version: `java -version` (must be 17+)
    - Check port availability: `netstat -an | findstr :8080`
-   - Check logs: `tail -f logs/microservice-template-dev.log`
+   - Check logs: `type logs\microservice-template-dev.log`
 
-2. **API key authentication failing**:
+2. **Swagger UI returns 500 error**:
+   - Most likely caused by Redis being unreachable (rate limiter failure)
+   - The `RateLimitService` now degrades gracefully - if this persists,
+     check that `RateLimitFilter` excludes `/swagger*` paths
+   - Verify the `ErrorController` is returning JSON (not Whitelabel page)
+
+3. **API key authentication failing**:
    - Verify API key format in configuration
    - Check roles assigned to API key
    - Ensure `security.api.validator` is set correctly
 
-3. **Database connection issues**:
+4. **Database connection issues**:
    - Verify PostgreSQL is running (if using prod profile)
    - Check connection string in configuration
    - Verify credentials
+   - Dev profile uses H2 in-memory - no database needed
 
-4. **Docker Compose issues**:
+5. **Redis connection errors in dev**:
+   - **This is expected behavior** in dev without Docker
+   - The application will still work - rate limiting degrades gracefully
+   - To enable full rate limiting: `docker-compose up -d redis`
+
+6. **Docker Compose issues**:
    - Ensure Docker daemon is running
    - Check port conflicts
    - View logs: `docker-compose logs microservice-template`
@@ -468,6 +511,7 @@ The application is cloud-ready with:
 Logs are written to `logs/` directory and console:
 - Development: DEBUG level for detailed debugging
 - Production: INFO level with structured JSON format
+- Custom `ErrorController` outputs detailed exception info including stack traces
 
 ## License
 

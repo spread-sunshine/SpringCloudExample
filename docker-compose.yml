@@ -25,13 +25,13 @@ services:
       - JWT_SECRET=${JWT_SECRET:-change-this-to-a-strong-secret-key-with-at-least-256-bits}
       - API_KEYS=${API_KEYS:-test-api-key-1:ROLE_USER,ROLE_ADMIN:Test Client 1;test-api-key-2:ROLE_USER:Test Client 2}
     depends_on:
-      eureka:
+      postgres:
         condition: service_healthy
     networks:
       - microservice-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/manage/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -79,7 +79,7 @@ services:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://${EUREKA_HOST:-eureka}:${EUREKA_PORT:-8761}/eureka/
     depends_on:
-      eureka:
+      postgres:
         condition: service_healthy
     networks:
       - microservice-network
@@ -120,6 +120,80 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # RabbitMQ (message queue)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USERNAME:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka (message streaming)
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+      - "${KAFKA_JMX_PORT:-9093}:9093"
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${KAFKA_HOST:-kafka}:${KAFKA_PORT:-9092}
+      - KAFKA_ZOOKEEPER_CONNECT=${ZOOKEEPER_HOST:-zookeeper}:2181
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_LOG_RETENTION_HOURS=168
+      - KAFKA_JMX_PORT=9093
+      - KAFKA_JMX_HOSTNAME=kafka
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  # ZooKeeper (required by Kafka)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    ports:
+      - "${ZOOKEEPER_PORT:-2181}:2181"
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "zkServer.sh", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zipkin (distributed tracing)
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "${ZIPKIN_PORT:-9411}:9411"
+    networks:
+      - microservice-network
+    restart: unless-stopped
 
   # Prometheus (monitoring)
   prometheus:

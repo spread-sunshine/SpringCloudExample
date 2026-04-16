@@ -73,10 +73,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // Skip rate limiting for health checks and actuator endpoints
+        // Skip rate limiting for health checks, actuator, swagger endpoints,
+        // static resources, and auth login/register
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/") || 
+        return path.startsWith("/actuator/") ||
                path.startsWith("/manage/") ||
+               path.startsWith("/swagger") ||
+               path.startsWith("/v3/api-docs") ||
+               path.startsWith("/webjars/") ||
+               path.endsWith(".html") ||
+               path.endsWith(".css") ||
+               path.endsWith(".js") ||
                path.equals("/api/auth/login") ||
                path.equals("/api/auth/register");
     }

@@ -33,34 +33,50 @@ public class RateLimitService {
         if (!enabled) {
             return false;
         }
-        
-        String key = buildKey(clientId, endpoint);
-        Long currentCount = redisTemplate.opsForValue().increment(key);
-        
-        if (currentCount == 1) {
-            // First request in window, set expiration
-            redisTemplate.expire(key, windowSeconds, TimeUnit.SECONDS);
+
+        try {
+            String key = buildKey(clientId, endpoint);
+            Long currentCount = redisTemplate.opsForValue().increment(key);
+
+            if (currentCount == 1) {
+                // First request in window, set expiration
+                redisTemplate.expire(key, windowSeconds, TimeUnit.SECONDS);
+            }
+
+            int limit = getLimitForEndpoint(endpoint);
+            return currentCount != null && currentCount > limit;
+        } catch (Exception e) {
+            log.warn("Rate limiting unavailable (Redis connection failed), "
+                    + "allowing request for client: {}, endpoint: {}. Error: {}",
+                    clientId, endpoint, e.getMessage());
+            return false;
         }
-        
-        int limit = getLimitForEndpoint(endpoint);
-        return currentCount != null && currentCount > limit;
     }
 
     public RateLimitInfo getRateLimitInfo(String clientId, String endpoint) {
-        String key = buildKey(clientId, endpoint);
-        Long currentCount = redisTemplate.opsForValue().get(key) != null ? 
-                Long.parseLong(redisTemplate.opsForValue().get(key)) : 0L;
-        
-        Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
-        if (ttl == null || ttl < 0) {
-            ttl = (long) windowSeconds;
+        try {
+            String key = buildKey(clientId, endpoint);
+            String countStr = redisTemplate.opsForValue().get(key);
+            Long currentCount = (countStr != null) ? Long.parseLong(countStr) : 0L;
+
+            Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+            if (ttl == null || ttl < 0) {
+                ttl = (long) windowSeconds;
+            }
+
+            int limit = getLimitForEndpoint(endpoint);
+            long remaining = Math.max(0, limit - currentCount);
+            long resetTime = Instant.now().plusSeconds(ttl).getEpochSecond();
+
+            return new RateLimitInfo(limit, remaining, resetTime, windowSeconds);
+        } catch (Exception e) {
+            log.warn("Failed to get rate limit info (Redis unavailable), "
+                    + "returning default values for client: {}, endpoint: {}",
+                    clientId, endpoint);
+            return new RateLimitInfo(defaultLimit, defaultLimit,
+                    Instant.now().plusSeconds(windowSeconds).getEpochSecond(),
+                    windowSeconds);
         }
-        
-        int limit = getLimitForEndpoint(endpoint);
-        long remaining = Math.max(0, limit - currentCount);
-        long resetTime = Instant.now().plusSeconds(ttl).getEpochSecond();
-        
-        return new RateLimitInfo(limit, remaining, resetTime, windowSeconds);
     }
 
     public void resetRateLimit(String clientId, String endpoint) {

@@ -1,8 +1,13 @@
 # Development profile configuration
+# 开发环境默认不依赖外部服务（Eureka/Redis/RabbitMQ/Kafka），
+# 可独立运行。如需启用某项服务，修改对应配置的 enabled 或 host 即可。
 server:
   port: 8080
   servlet:
     context-path: /
+  error:
+    whitelabel:
+      enabled: false
   compression:
     enabled: true
     mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
@@ -13,7 +18,7 @@ spring:
     name: microservice-template
   cloud:
     discovery:
-      enabled: true
+      enabled: false
     config:
       enabled: false
   datasource:
@@ -39,6 +44,7 @@ spring:
     open-in-view: false
   flyway:
     enabled: false
+  # Redis (可选：RateLimitService 已做优雅降级，Redis 不可用时自动放行)
   redis:
     host: localhost
     port: 6379
@@ -49,53 +55,47 @@ spring:
         max-idle: 5
         min-idle: 2
         max-wait: -1ms
-  rabbitmq:
-    host: localhost
-    port: 5672
-    username: guest
-    password: guest
-    connection-timeout: 10000
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      group-id: microservice-group
-      auto-offset-reset: earliest
-      enable-auto-commit: false
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  # RabbitMQ (开发环境不启用，取消注释并启动 RabbitMQ 后可用)
+  # rabbitmq:
+  #   host: localhost
+  #   port: 5672
+  #   username: guest
+  #   password: guest
+  #   connection-timeout: 10000
+
+  # Kafka (开发环境不启用，取消注释并启动 Kafka 后可用)
+  # kafka:
+  #   bootstrap-servers: localhost:9092
+  #   consumer:
+  #     group-id: microservice-group
+  #     auto-offset-reset: earliest
+  #     enable-auto-commit: false
+  #   producer:
+  #     key-serializer: org.springframework.kafka.common.serialization.StringSerializer
+  #     value-serializer: org.springframework.kafka.common.serialization.StringSerializer
+
+  # 开发环境使用 Caffeine 本地缓存，无需 Redis
   cache:
-    type: redis
-    redis:
-      time-to-live: 600000
-      cache-null-values: false
-      use-key-prefix: true
+    type: caffeine
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=10m
 
 eureka:
   client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-    enabled: true
-    fetch-registry: true
-    register-with-eureka: true
-    registry-fetch-interval-seconds: 30
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
-    lease-renewal-interval-in-seconds: 30
-    lease-expiration-duration-in-seconds: 90
+    enabled: false
+    fetch-registry: false
+    register-with-eureka: false
 
-# JWT Configuration
 jwt:
   secret: your-secret-key-change-in-production-with-at-least-256-bits-longer-key-for-testing
-  expiration: 86400000 # 24 hours
-  refresh-expiration: 604800000 # 7 days
+  expiration: 86400000
+  refresh-expiration: 604800000
 
-# Security Configuration
 security:
   api:
     keys: "test-api-key-1:ROLE_USER,ROLE_ADMIN:Test Client 1;test-api-key-2:ROLE_USER:Test Client 2"
-    validator: "database" # simple or database
+    validator: "database"
     key:
       expiration:
         days: 90
@@ -114,7 +114,7 @@ security:
   headers:
     enabled: true
     hsts:
-      max-age: 31536000 # 1 year
+      max-age: 31536000
       include-subdomains: true
       preload: false
     csp:
@@ -127,7 +127,6 @@ security:
           client-secret: your-github-client-secret
           scope: read:user,user:email
 
-# Logging Configuration
 logging:
   level:
     com.template: DEBUG
@@ -143,12 +142,7 @@ logging:
     name: logs/microservice-template-dev.log
     max-size: 10MB
     max-history: 30
-  logstash:
-    enabled: true
-    host: ${LOGSTASH_HOST:localhost}
-    port: ${LOGSTASH_PORT:5000}
 
-# Management Endpoints
 management:
   endpoints:
     web:
@@ -176,11 +170,7 @@ management:
         http.server.requests: true
     tags:
       application: ${spring.application.name}
-  info:
-    env:
-      enabled: true
 
-# Resilience4j Configuration
 resilience4j:
   circuitbreaker:
     instances:
@@ -209,41 +199,21 @@ resilience4j:
   ratelimiter:
     instances:
       apiRateLimiter:
-        limitForPeriod: 10
-        limitRefreshPeriod: 1s
-        timeoutDuration: 0s
-        registerHealthIndicator: true
+        limit-for-period: 10
+        limit-refresh-period: 1s
+        timeout-duration: 0s
+        register-health-indicator: true
 
-# Scheduled Tasks Configuration
 scheduling:
   enabled: true
   cleanup:
     old-audit-logs:
       enabled: true
-      cron: "0 0 2 * * ?" # Daily at 2 AM
+      cron: "0 0 2 * * ?"
       retention-days: 90
     expired-tokens:
       enabled: true
-      cron: "0 0 1 * * ?" # Daily at 1 AM
+      cron: "0 0 1 * * ?"
     rate-limit-reset:
       enabled: true
-      cron: "0 0 * * * ?" # Hourly
-
-# Sleuth Configuration
-spring.sleuth:
-  sampler:
-    probability: 1.0
-  propagation:
-    type: B3
-  web:
-    enabled: true
-    skipPattern: /manage/.*|/swagger.*|/v3/api-docs.*
-
-# Zipkin Configuration
-spring.zipkin:
-  base-url: http://localhost:9411
-  enabled: true
-  sender:
-    type: web
-  service:
-    name: ${spring.application.name}
+      cron: "0 0 * * * ?"

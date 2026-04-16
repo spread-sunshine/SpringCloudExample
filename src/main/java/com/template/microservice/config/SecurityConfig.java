@@ -24,8 +24,15 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
 import java.util.Arrays;
 
+/**
+ * Spring Security 配置类。
+ * 配置基于 JWT 和 API Key 的无状态认证机制。
+ */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(
@@ -46,26 +53,56 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // 禁用默认的表单登录和 Basic Auth（纯 REST API 不需要）
+                .formLogin(form -> form.disable())
+                .httpBasic(basic -> basic.disable())
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 公开端点 - 无需认证
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/example/public").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
-                        .requestMatchers("/actuator/info").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        // Swagger UI 完整路径匹配（包含所有子资源）
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/index.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml",
+                                "/v3/api-docs",
+                                "/webjars/**"
+                        ).permitAll()
+                        // 管理端点 - 需要 ADMIN 角色
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/audit/**").hasRole("ADMIN") // Audit endpoints
-                        .requestMatchers("/api/management/**").hasRole("ADMIN") // Management endpoints
+                        .requestMatchers("/api/audit/**").hasRole("ADMIN")
+                        .requestMatchers("/api/management/**").hasRole("ADMIN")
+                        // 其他所有请求需要认证
                         .anyRequest().authenticated()
                 )
+                // 自定义未认证响应：返回 401 JSON 而非跳转登录页
                 .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(
+                                (HttpServletRequest request, HttpServletResponse response,
+                                        org.springframework.security.core.AuthenticationException authException) -> {
+                                    response.setStatus(401);
+                                    response.setContentType("application/json");
+                                    response.getWriter().write(
+                                            "{\"success\":false,"
+                                                    + "\"message\":\"Authentication required\","
+                                                    + "\"errorCode\":\"UNAUTHORIZED\"}");
+                                })
                         .accessDeniedHandler(accessDeniedHandler())
                 )
-                .addFilterBefore(headerWriterFilter, ExceptionTranslationFilter.class)
-                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(headerWriterFilter,
+                        ExceptionTranslationFilter.class)
+                .addFilterBefore(apiKeyAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -73,8 +110,7 @@ public class SecurityConfig {
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
-            // Log authorization failures
-            String username = request.getUserPrincipal() != null ? 
+            String username = request.getUserPrincipal() != null ?
                     request.getUserPrincipal().getName() : "ANONYMOUS";
             auditService.logAuthorizationFailure(
                     username,
@@ -82,7 +118,7 @@ public class SecurityConfig {
                     request.getMethod(),
                     request
             );
-            
+
             response.setStatus(403);
             response.setContentType("application/json");
             response.getWriter().write("{\"error\": \"Access denied\", \"message\": \"Insufficient permissions\"}");
@@ -123,6 +159,6 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12); // Stronger password hashing
+        return new BCryptPasswordEncoder(12);
     }
 }

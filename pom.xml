@@ -83,11 +83,13 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-config</artifactId>
         </dependency>
-        <!-- Gateway (optional) -->
+        <!-- Gateway (optional) - 已禁用：Gateway 使用 WebFlux，与 Servlet Security 冲突 -->
+        <!--
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway</artifactId>
         </dependency>
+        -->
         <!-- Circuit Breaker (Resilience) -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>

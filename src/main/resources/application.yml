@@ -5,7 +5,9 @@ spring:
     active: @spring.profiles.active@
   main:
     allow-bean-definition-overriding: true
-    web-application-type: reactive
+# 注意：已移除 web-application-type: reactive
+# 原因：Gateway(WebFlux) 与 Servlet Security(JPA/MVC) 冲突
+# 如需 Gateway 功能，应作为独立微服务部署
   cloud:
     config:
       enabled: false
@@ -17,6 +19,9 @@ server:
   port: 8080
   servlet:
     context-path: /
+  error:
+    whitelabel:
+      enabled: false
 
 management:
   endpoints:
@@ -32,32 +37,10 @@ logging:
     com.template: DEBUG
     org.springframework.cloud: INFO
 
-# Example configuration for Eureka (optional)
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
     enabled: true
-  instance:
-    prefer-ip-address: true
-
-# Example configuration for Gateway (if used)
-spring.cloud.gateway:
-  routes:
-    - id: example_route
-      uri: lb://SERVICE-NAME
-      predicates:
-        - Path=/api/**
-
-# Resilience4j circuit breaker
-resilience4j.circuitbreaker:
-  instances:
-    backendA:
-      registerHealthIndicator: true
-      slidingWindowSize: 10
-      minimumNumberOfCalls: 5
-      permittedNumberOfCallsInHalfOpenState: 3
-      automaticTransitionFromOpenToHalfOpenEnabled: true
-      waitDurationInOpenState: 5s
-      failureRateThreshold: 50
-      eventConsumerBufferSize: 10
+    instance:
+      prefer-ip-address: true

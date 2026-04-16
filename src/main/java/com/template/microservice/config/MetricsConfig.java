@@ -31,7 +31,6 @@ public class MetricsConfig {
             }
         };
     }
-
     @Bean
     public MeterBinder customMetrics() {
         return registry -> {
