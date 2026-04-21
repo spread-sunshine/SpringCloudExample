@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Configuration;
  * <p>Routes are defined programmatically here as an alternative to YAML-based
  * configuration, providing better IDE support and compile-time safety.
  * Routes can also be configured in {@code application.yml} under
- * {@code spring.cloud.gateway.routes}.</p>
+ * {@code spring.cloud.gateway.server.webflux.routes} (Spring Boot 4+).</p>
  */
 @Configuration
 @Slf4j

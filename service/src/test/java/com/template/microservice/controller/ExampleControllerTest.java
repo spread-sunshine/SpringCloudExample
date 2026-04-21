@@ -4,8 +4,17 @@ import com.template.microservice.model.ExampleResponse;
 import com.template.microservice.service.ExampleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+/*
+ * Spring Boot 4 Migration:
+ * - @MockBean / @SpyBean are REMOVED
+ * - Replace with @MockitoBean / @MockitoSpyBean
+ *   from org.springframework.test.context.bean.override.mockito
+ * - @WebMvcTest no longer auto-provides MockMvc bean,
+ *   must add @AutoConfigureMockMvc explicitly.
+ */
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -15,12 +24,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ExampleController.class)
+@AutoConfigureMockMvc
 class ExampleControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private ExampleService exampleService;
 
     @Test

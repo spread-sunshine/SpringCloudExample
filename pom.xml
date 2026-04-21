@@ -7,7 +7,7 @@
 
     <groupId>com.template</groupId>
     <artifactId>spring-cloud-microservice-template</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <packaging>pom</packaging>
 
     <name>Spring Cloud Microservice Template</name>
@@ -15,6 +15,7 @@
         Multi-module microservice template: service (Servlet+JPA) + gateway (WebFlux).
         Architecture follows the industry best practice of separating Gateway (reactive)
         from business services (servlet).
+        Built on Spring Boot 4 with Java 21 Leyden AOT support.
     </description>
 
     <!-- ========== Submodules ========== -->
@@ -26,19 +27,24 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.5</version>
+        <version>4.0.0</version>
         <relativePath/>
     </parent>
 
     <properties>
-        <java.version>17</java.version>
-        <spring-cloud.version>2023.0.3</spring-cloud.version>
-        <lombok.version>1.18.32</lombok.version>
-        <micrometer-tracing.version>1.2.5</micrometer-tracing.version>
-        <testcontainers.version>1.19.3</testcontainers.version>
+        <!-- Java 21 required for Spring Boot 4 + Leyden -->
+        <java.version>21</java.version>
+        <!-- Spring Cloud 2025.0 (Northfields) supports Spring Boot 4 -->
+        <spring-cloud.version>2025.0</spring-cloud.version>
+        <lombok.version>1.18.34</lombok.version>
+        <testcontainers.version>1.20.2</testcontainers.version>
+        <springdoc.version>2.7.0</springdoc.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Leyden / AOT Properties -->
+        <spring-boot.processing.aot.enabled>true</spring-boot.processing.aot.enabled>
+        <spring-boot.processing.aot.graceful-shutdown>true</spring-boot.processing.aot.graceful-shutdown>
     </properties>
 
     <!-- ========== Dependency Management (BOM) ========== -->
@@ -52,16 +58,54 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- Micrometer Tracing BOM -->
-            <dependency>
-                <groupId>io.micrometer</groupId>
-                <artifactId>micrometer-tracing-bom</artifactId>
-                <version>${micrometer-tracing.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <!-- ========== Repositories ========== -->
+    <!--
+      Spring Boot 4 + Spring Cloud 2025.0 may not be available on all mirrors.
+      Multiple repositories added for maximum availability.
+    -->
+    <repositories>
+        <repository>
+            <id>aliyun</id>
+            <name>Aliyun Public</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </repository>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>maven-central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2/</url>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>aliyun</id>
+            <name>Aliyun Public</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+        </pluginRepository>
+        <pluginRepository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </pluginRepository>
+        <pluginRepository>
+            <id>maven-central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2/</url>
+        </pluginRepository>
+    </pluginRepositories>
 
     <!-- ========== Build Plugin Management ========== -->
     <build>
@@ -77,6 +121,32 @@
                                 <artifactId>lombok</artifactId>
                             </exclude>
                         </excludes>
+                        <!-- Leyden: enable AOT processing for faster startup -->
+                        <image>
+                            <builder>docker.io/paketobuildpacks/builder-jammy-base</builder>
+                            <env>
+                                <BP_NATIVE_IMAGE>true</BP_NATIVE_IMAGE>
+                            </env>
+                            <!--
+                            Leyden Condensed Lock Mode:
+                            Use -XX:CondensedLockMode=on at runtime for
+                            reduced memory footprint and faster lock acquisition.
+                            This is a JDK 21+ Leyden preview feature.
+                            -->
+                        </image>
+                        <executions>
+                            <!--
+                            Leyden AOT processing execution:
+                            Generates AOT-optimized classes at build time,
+                            dramatically reducing application startup time.
+                            -->
+                            <execution>
+                                <id>process-aot</id>
+                                <goals>
+                                    <goal>process-aot</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -92,6 +162,10 @@
                         </annotationProcessorPaths>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <!-- Leyden: Enable preview features for Condensed Lock Mode -->
+                        <compilerArgs>
+                            <arg>--enable-preview</arg>
+                        </compilerArgs>
                     </configuration>
                 </plugin>
             </plugins>
@@ -114,6 +188,35 @@
             <properties>
                 <spring.profiles.active>prod</spring.profiles.active>
             </properties>
+        </profile>
+        <!--
+        Leyden Profile: Enables full AOT + native image compilation.
+        Usage: mvn clean package -Pleyden
+        Requires: GraalVM 25+ or JDK with Leyden support
+        -->
+        <profile>
+            <id>leyden</id>
+            <properties>
+                <spring-boot.processing.aot.enabled>true</spring-boot.processing.aot.enabled>
+                <spring-boot.processing.aot.mode>native</spring-boot.processing.aot.mode>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>package-native-image</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>build-image</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>

@@ -6,17 +6,20 @@ spring:
     allow-bean-definition-overriding: true
   cloud:
     gateway:
-      # Global filters order and defaults
-      default-filters:
-        - AddResponseHeader=X-Content-Type-Options, nosniff
-        - AddResponseHeader=X-XSS-Protection, 1; mode=block
-        - AddResponseHeader=X-Frame-Options, DENY
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
-      # Discovery client integration
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
+      # Spring Boot 4 + Spring Cloud 2025.0:
+      # Property prefix changed from spring.cloud.gateway.*
+      # to spring.cloud.gateway.server.webflux.* for clarity
+      server:
+        webflux:
+          default-filters:
+            - AddResponseHeader=X-Content-Type-Options, nosniff
+            - AddResponseHeader=X-XSS-Protection, 1; mode=block
+            - AddResponseHeader=X-Frame-Options, DENY
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true
 
 server:
   port: 8081

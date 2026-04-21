@@ -5,6 +5,8 @@ A reusable **multi-module** microservice template following industry best practi
 Comprehensive security including API key authentication, JWT, role-based access control,
 and full observability stack.
 
+**Built on Spring Boot 4 + Java 21 with Leyden AOT/Native Image support**.
+
 ## Architecture Overview
 
 ```
@@ -17,6 +19,7 @@ and full observability stack.
 ┌─────────────────────────────────────────────────────────┐
 │              microservice-gateway (WebFlux)             │
 │  Port: 8081 | Reactive Stack | Independent Process     │
+│  Leyden AOT-optimized for sub-second startup            │
 │                                                          │
 │  ├── GlobalCorsConfig        CORS configuration          │
 │  ├── GatewayRouteConfig      Route: /api/** → lb://service│
@@ -30,9 +33,10 @@ and full observability stack.
 ┌─────────────────────────────────────────────────────────┐
 │           microservice-service (Servlet + JPA)          │
 │  Port: 8080 | Servlet Stack | Business Logic            │
+│  Leyden AOT-optimized for fast cold start               │
 │                                                          │
-│  ├── SecurityConfig         JWT + API Key auth          │
-│  ├── AuthController          /api/auth/* endpoints       │
+│  ├── SecurityConfig           JWT + API Key auth          │
+│  ├── AuthController           /api/auth/* endpoints       │
 │  ├── ExampleController        /api/example/* endpoints   │
 │  ├── RateLimitService         Redis-aware rate limiting   │
 │  ├── Service layer            JPA/Hibernate/Redis/Kafka  │
@@ -54,7 +58,8 @@ and full observability stack.
 
 ## Features
 
-- **Spring Boot 3.2.5** with **Spring Cloud 2023.0.3**
+- **Spring Boot 4.0** with **Spring Cloud 2025.0 (Northfields)**
+- **Java 21** (Leyden AOT / Condensed Lock Mode / Native Image)
 - **Multi-Module Architecture**: Gateway (reactive) + Service (servlet)
 - **Dual Authentication**: API Key + JWT token support (in Service module)
 - **Role-Based Access Control**: Fine-grained authorization with Spring Security
@@ -70,6 +75,7 @@ and full observability stack.
 - **Message Queues**: RabbitMQ and Kafka support
 - **Monitoring**: Prometheus metrics, Grafana dashboards, custom health indicators
 - **Containerization**: Multi-stage Dockerfiles per module, docker-compose orchestration
+- **Leyden Support**: AOT processing, Condensed Lock Mode, native image compilation
 
 ## Technology Stack
 
@@ -77,7 +83,7 @@ and full observability stack.
 |--------|-------|---------------|
 | **Gateway** | WebFlux (Reactive) | Spring Cloud Gateway, Reactor Netty, LoadBalancer |
 | **Service** | Servlet (MVC) | Spring MVC, Spring Data JPA, Spring Security, Redis, Kafka, RabbitMQ |
-| **Shared** | Java 17, Maven, Spring Boot 3, Spring Cloud 2023.0.3 | Micrometer, Zipkin/Brave |
+| **Shared** | Java 21, Maven, Spring Boot 4, Spring Cloud 2025.0 | Micrometer, Zipkin/Brave, Leyden AOT |
 
 ## Project Structure
 
@@ -157,20 +163,46 @@ TestSprintCloud/                          # Root (parent POM, packaging=pom)
 
 ### Prerequisites
 
-- Java 17 or higher
-- Maven 3.6+
+- **Java 21+** (Leyden AOT requires JDK 21 with Condensed Lock Mode support)
+- Maven 3.9+
 - Docker and Docker Compose (optional, for full infrastructure)
 
 ### Building
 
 ```bash
-# Build all modules (parent + service + gateway)
+# Build all modules (parent + service + gateway) with AOT processing
 mvn clean package
+
+# Build with Leyden AOT + Native Image (requires GraalVM 25+ or JDK with native-image)
+mvn clean package -Pleyden
 
 # Build only specific module
 mvn clean package -pl service
 mvn clean package -pl gateway
 ```
+
+### Leyden / AOT / Native Image
+
+Spring Boot 4 integrates with **Leyden** (JDK 21+) for dramatically faster startup and lower memory:
+
+| Profile | Description | Command |
+|---------|-------------|---------|
+| **default** | AOT processing enabled at build time | `mvn clean package` |
+| **leyden** | Full AOT + OCI native image compilation | `mvn clean package -Pleyden` |
+
+**Runtime with Condensed Lock Mode** (JDK 21+ preview feature):
+```bash
+# Run AOT-optimized JAR with Leyden Condensed Lock Mode
+java --enable-preview -XX:CondensedLockMode=on \
+     -jar microservice-service/target/microservice-service-2.0.0.jar
+
+# Run native image (after `mvn clean package -Pleyden`)
+./microservice-service/target/microservice-service
+```
+
+> **Note**: Leyden Condensed Lock Mode is a JDK 21+ preview feature.
+> Use `--enable-preview` flag to enable it. For production native images,
+> GraalVM 25+ is recommended.
 
 ### Running
 

@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.template</groupId>
         <artifactId>spring-cloud-microservice-template</artifactId>
-        <version>1.0.0</version>
+        <version>2.0.0</version>
     </parent>
 
     <artifactId>microservice-gateway</artifactId>
@@ -17,14 +17,22 @@
         API Gateway using Spring Cloud Gateway (WebFlux / reactive stack).
         Runs as an independent process on port 8081, routing external traffic
         to the service module and other downstream services.
+        Upgraded for Spring Boot 4 with Leyden AOT support.
     </description>
     <packaging>jar</packaging>
 
     <dependencies>
-        <!-- Spring Cloud Gateway (includes WebFlux) -->
+        <!--
+          Spring Boot 4 + Spring Cloud 2025.0:
+          Gateway starter renamed for clarity:
+          - spring-cloud-starter-gateway ->
+              spring-cloud-starter-gateway-server-webflux
+          The old artifact name is deprecated but still works
+          with a warning log message.
+        -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-gateway</artifactId>
+            <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
         </dependency>
 
         <!-- Service Discovery (Eureka Client - for dynamic routing) -->
@@ -60,13 +68,13 @@
 
         <!-- Distributed Tracing -->
         <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-brave</artifactId>
         </dependency>
         <dependency>
             <groupId>io.zipkin.reporter2</groupId>
             <artifactId>zipkin-reporter-brave</artifactId>
-            <version>2.16.3</version>
+            <version>3.3.0</version>
         </dependency>
 
         <!-- Prometheus Metrics -->
@@ -75,11 +83,18 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
-        <!-- Test -->
+        <!-- Test: Spring Boot 4 technology-specific test starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
+            <artifactId>spring-boot-starter-webflux-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <!-- Properties migrator -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-properties-migrator</artifactId>
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 

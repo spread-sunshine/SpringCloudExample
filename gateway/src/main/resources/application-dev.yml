@@ -6,20 +6,24 @@ server:
 spring:
   cloud:
     gateway:
-      routes:
-        # Direct route to local service (no Eureka required)
-        - id: microservice-template-local
-          uri: http://localhost:8080
-          predicates:
-            - Path=/api/**, /manage/**, /swagger-ui/**,
-              /v3/api-docs/**, /webjars/**, /swagger-ui.html
-          filters:
-            - StripPrefix=0
-        # Fallback route
-        - id: fallback
-          uri: http://localhost:8080
-          predicates:
-            - Path=/**
+      # Spring Boot 4 + Spring Cloud 2025.0:
+      # Routes now under server.webflux prefix
+      server:
+        webflux:
+          routes:
+            # Direct route to local service (no Eureka required)
+            - id: microservice-template-local
+              uri: http://localhost:8080
+              predicates:
+                - Path=/api/**, /manage/**, /swagger-ui/**,
+                  /v3/api-docs/**, /webjars/**, /swagger-ui.html
+              filters:
+                - StripPrefix=0
+            # Fallback route
+            - id: fallback
+              uri: http://localhost:8080
+              predicates:
+                - Path=/**
 
 # Disable Eureka in dev (use static routing above)
 eureka:

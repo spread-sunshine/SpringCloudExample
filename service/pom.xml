@@ -8,7 +8,7 @@
     <parent>
         <groupId>com.template</groupId>
         <artifactId>spring-cloud-microservice-template</artifactId>
-        <version>1.0.0</version>
+        <version>2.0.0</version>
     </parent>
 
     <artifactId>microservice-service</artifactId>
@@ -20,10 +20,20 @@
     <packaging>jar</packaging>
 
     <dependencies>
-        <!-- Spring Boot Starters -->
+        <!--
+          Spring Boot 4 Migration Notes:
+          - spring-boot-starter-web -> spring-boot-starter-webmvc
+          - spring-boot-starter-oauth2-* -> spring-boot-starter-security-oauth2-*
+          - flyway-core -> spring-boot-starter-flyway
+          - jakarta.servlet-api: managed by Spring Boot 4 (Servlet 6.1)
+          - Micrometer tracing: now under spring-boot-micrometer-tracing BOM
+          - Test starters split into technology-specific test starters
+        -->
+
+        <!-- Spring Boot Starters (Spring Boot 4 modular design) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
         <dependency>
@@ -36,10 +46,32 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!--
+          Spring Boot 4: Test starters are now technology-specific.
+          Use spring-boot-starter-webmvc-test for MockMVC support,
+          and spring-boot-starter-security-test for @MockitoBean in security tests.
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!--
+          Properties migrator: helps identify deprecated/renamed properties.
+          Remove this dependency after migration is complete!
+          See: https://docs.spring.io/spring-boot/reference/upgrade.html#migration-guide
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-properties-migrator</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Spring Cloud -->
@@ -65,14 +97,19 @@
         </dependency>
 
         <!-- Distributed Tracing (Micrometer Tracing + Brave) -->
+        <!--
+          Spring Boot 4: micrometer-tracing modules are now under
+          org.springframework.boot:maven-bom, not a separate BOM.
+          Artifact IDs changed to spring-boot-micrometer-tracing-*.
+        -->
         <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-brave</artifactId>
         </dependency>
         <dependency>
             <groupId>io.zipkin.reporter2</groupId>
             <artifactId>zipkin-reporter-brave</artifactId>
-            <version>2.16.3</version>
+            <version>3.3.0</version>
         </dependency>
 
         <!-- Lombok -->
@@ -95,36 +132,41 @@
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
-            <version>0.12.5</version>
+            <version>0.12.6</version>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
-            <version>0.12.5</version>
+            <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.5</version>
+            <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
-        <!-- OAuth2 Resource Server -->
+        <!--
+          Spring Boot 4: OAuth2 starters renamed:
+          - spring-boot-starter-oauth2-resource-server ->
+              spring-boot-starter-security-oauth2-resource-server
+          - spring-boot-starter-oauth2-client ->
+              spring-boot-starter-security-oauth2-client
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
         </dependency>
-        <!-- OAuth2 Client -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+            <artifactId>spring-boot-starter-security-oauth2-client</artifactId>
         </dependency>
 
         <!-- Swagger/OpenAPI Documentation (MVC version) -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.5.0</version>
+            <version>${springdoc.version}</version>
         </dependency>
 
         <!-- Database (JPA) -->
@@ -142,9 +184,13 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!--
+          Spring Boot 4: Flyway now requires its own starter:
+          - flyway-core (direct dep) -> spring-boot-starter-flyway
+        -->
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-flyway</artifactId>
         </dependency>
 
         <!-- Connection Pool -->
@@ -179,9 +225,13 @@
         </dependency>
 
         <!-- Monitoring & Metrics -->
+        <!--
+          Spring Boot 4: micrometer-core is included transitively via
+          spring-boot-starter-micrometer-metrics or actuator starter.
+        -->
         <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-micrometer-metrics</artifactId>
         </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
@@ -226,13 +276,11 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Jakarta Servlet API (for testing) -->
-        <dependency>
-            <groupId>jakarta.servlet</groupId>
-            <artifactId>jakarta.servlet-api</artifactId>
-            <version>6.0.0</version>
-            <scope>test</scope>
-        </dependency>
+        <!--
+          Jakarta Servlet API: No longer needed as explicit dependency.
+          Spring Boot 4 manages Servlet 6.1 baseline automatically.
+          Previously was jakarta.servlet:jakarta.servlet-api:6.0.0
+        -->
     </dependencies>
 
     <build>
